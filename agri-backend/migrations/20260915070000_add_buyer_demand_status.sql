@@ -1,0 +1,1 @@
+ALTER TABLE buyer_demand ADD COLUMN status TEXT NOT NULL DEFAULT 'open';

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgriConnect (SIH 26132) — Dev Server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Public+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --font-heading: "Lora", serif;
+        --font-body: "Public Sans", sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-body);
+        background: #f8f9fa;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        max-width: 580px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        text-align: center;
+      }
+      h1 {
+        font-family: var(--font-heading);
+        font-size: 1.75rem;
+        color: #1e3a1e;
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      p {
+        font-size: 0.95rem;
+        color: #4b5563;
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+      }
+      .badge {
+        display: inline-block;
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 0.35rem 0.85rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      .code-box {
+        background: #111827;
+        color: #10b981;
+        padding: 1rem 1.25rem;
+        border-radius: 0.75rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.9rem;
+        text-align: left;
+        margin-bottom: 1.5rem;
+        overflow-x: auto;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #2e7d32;
+        color: #ffffff;
+        padding: 0.75rem 1.5rem;
+        border-radius: 9999px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: background-color 0.2s;
+      }
+      .btn:hover {
+        background: #1b5e20;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <span class="badge">AgriConnect · SIH 26132</span>
+      <h1>Vite & TanStack Start Dev Server</h1>
+      <p>
+        You are currently viewing this folder through a static HTTP server (like VS Code Live Server on port 5502).
+        Because AgriConnect is a fullstack <strong>Vite + TypeScript + React Router</strong> application, it needs the Vite dev server to compile and run.
+      </p>
+      <div class="code-box">
+        # Run this in your terminal to start the live app:<br />
+        <strong>npm run dev</strong> &nbsp;<em>(or: bun run dev / npx vite dev)</em>
+      </div>
+      <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem;">
+        Once started, open the Vite server URL displayed in your terminal (typically <strong>http://localhost:3000</strong> or <strong>http://localhost:5173</strong>).
+      </p>
+    </div>
+  </body>
+</html>
