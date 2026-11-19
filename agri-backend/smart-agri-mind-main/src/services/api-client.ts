@@ -58,7 +58,7 @@ export function getAuthErrorMessage(error: unknown, action: "login" | "register"
 }
 
 // ── Core request helper ──────────────────────────────────────────────────────
-async function request<T>(
+export async function request<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
@@ -92,6 +92,18 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+/** Opens a protected file (e.g. a certificate) in a new tab using the session header. */
+export async function openProtectedFile(path: string): Promise<void> {
+  const session = getSession();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: session ? { "X-User-Id": String(session.userId) } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, "Could not open the file");
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 // ── Typed endpoint wrappers ──────────────────────────────────────────────────
 
 // ── Health ───────────────────────────────────────────────────────────────────
@@ -109,13 +121,13 @@ export interface AuthResponse {
   name: string;
 }
 
-export const loginFarmer = (phone: string, pin: string, role: "farmer" | "buyer"): Promise<AuthResponse> =>
+export const loginFarmer = (phone: string, pin: string, role: "farmer" | "buyer" | "fpo" | "admin"): Promise<AuthResponse> =>
   request<AuthResponse>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ phone, pin, role }),
   });
 
-export const registerFarmer = (name: string, phone: string, pin: string, role: "farmer" | "buyer"): Promise<AuthResponse> =>
+export const registerFarmer = (name: string, phone: string, pin: string, role: "farmer" | "buyer" | "fpo"): Promise<AuthResponse> =>
   request<AuthResponse>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, phone, pin, role }),
@@ -129,6 +141,13 @@ export interface BackendCrop {
 
 export const getCrops = (): Promise<BackendCrop[]> =>
   request<BackendCrop[]>("/api/crops");
+
+/** Find-or-create a crop by name (e.g. a Mandi API commodity). */
+export const ensureCrop = (name: string): Promise<BackendCrop> =>
+  request<BackendCrop>("/api/crops", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
 
 // ── Market prices ─────────────────────────────────────────────────────────────
 export interface BackendLiveMandiPrice {
@@ -344,6 +363,8 @@ export interface BackendTransaction {
   quantity_quintals: number;
   buyer_name: string;
   farmer_name: string;
+  lot_id: number;
+  accepted_by_role: "farmer" | "buyer";
 }
 
 export const getTransaction = (

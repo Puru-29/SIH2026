@@ -165,6 +165,9 @@ pub struct Transaction {
     pub quantity_quintals: f64,
     pub buyer_name: String,
     pub farmer_name: String,
+    pub lot_id: i64,
+    // Who accepted the offer that created this transaction: "farmer" or "buyer".
+    pub accepted_by_role: String,
 }
 
 // API request/response types
@@ -240,6 +243,12 @@ pub struct SmartSaleResponse {
     pub future_net_realisation: f64,
     // Share to sell now: 1.0 = all, 0.0 = none, 0.5 = half.
     pub suggested_sell_ratio: f64,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateCropRequest {
+    #[validate(length(min = 1, max = 80))]
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]

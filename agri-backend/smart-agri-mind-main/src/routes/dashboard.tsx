@@ -1,9 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, BadgeCheck, Boxes, ClipboardList, IndianRupee, MapPin, Search, TrendingUp, Truck } from "lucide-react";
+import { useEffect } from "react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Boxes,
+  ClipboardList,
+  IndianRupee,
+  MapPin,
+  Search,
+  TrendingUp,
+  Truck,
+} from "lucide-react";
 import { PortalLayout } from "@/components/agri/portal-layout";
 import { Metric, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
-import { BUYERS, inr, kg, LOTS, MARKETS, roadKm, transportPerKg } from "@/services";
+import { BUYERS, inr, kg, LOTS as SAMPLE_LOTS, MARKETS, roadKm, transportPerKg } from "@/services";
+import { useMyLots } from "@/hooks/use-my-lots";
 import { getSession } from "@/services/session";
 import { useI18n } from "@/lib/i18n";
 import { useAcceptOffer, useOffers } from "@/hooks/use-offers";
@@ -29,14 +41,27 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const session = getSession();
-  if (session?.role === "buyer") {
-    return <BuyerDashboard />;
-  }
+  if (session?.role === "admin") return <AdminRedirect />;
+  return session?.role === "buyer" ? <BuyerDashboard /> : <FarmerDashboard />;
+}
 
+function AdminRedirect() {
+  const navigate = Route.useNavigate();
+  useEffect(() => {
+    void navigate({ to: "/admin" });
+  }, [navigate]);
+  return null;
+}
+
+function FarmerDashboard() {
+  const session = getSession();
   const { location } = useFarmLocation();
   const { t } = useI18n();
   const firstName = (session?.name || "Ramesh").split(" ")[0];
-  
+  const { lots: myLots } = useMyLots();
+  // Real registered lots when available; sample lots otherwise.
+  const LOTS = session && myLots.length > 0 ? myLots : SAMPLE_LOTS;
+
   const hero = LOTS[0]!;
   const bestBuyer = BUYERS[0]!;
   const buyerKm = roadKm(location, bestBuyer);
@@ -69,8 +94,9 @@ function Dashboard() {
               {t("Sell now")} · {kg(hero.quantity)} {t(hero.crop)} at {inr(bestBuyer.offer)}/kg
             </h2>
             <p className="mt-2 max-w-xl text-sm text-primary-foreground/75">
-              {bestBuyer.name} {t("is")} {buyerKm} km {t("from")} {location.name}. {t("After")} {inr(freight)}/kg{" "}
-              {t("transport your net realization is")} {inr(net)} — {hero.confidence}% {t("confidence")}.
+              {bestBuyer.name} {t("is")} {buyerKm} km {t("from")} {location.name}. {t("After")}{" "}
+              {inr(freight)}/kg {t("transport your net realization is")} {inr(net)} —{" "}
+              {hero.confidence}% {t("confidence")}.
             </p>
           </div>
           <StatusTag status={hero.status} />
@@ -96,10 +122,30 @@ function Dashboard() {
       </Panel>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Active lots" value={LOTS.length} hint={kg(totalKg)} icon={<Boxes className="h-4 w-4" />} />
-        <Metric label="Portfolio value" value={inr(totalValue)} hint={t("At current offers")} icon={<IndianRupee className="h-4 w-4" />} />
-        <Metric label="Best mandi gain" value="+6.1%" hint="Mumbai Vashi APMC" icon={<TrendingUp className="h-4 w-4" />} />
-        <Metric label="Avg transport" value={inr(freight) + "/kg"} hint={`${buyerKm} km ${t("to nearest buyer")}`} icon={<Truck className="h-4 w-4" />} />
+        <Metric
+          label="Active lots"
+          value={LOTS.length}
+          hint={kg(totalKg)}
+          icon={<Boxes className="h-4 w-4" />}
+        />
+        <Metric
+          label="Portfolio value"
+          value={inr(totalValue)}
+          hint={t("At current offers")}
+          icon={<IndianRupee className="h-4 w-4" />}
+        />
+        <Metric
+          label="Best mandi gain"
+          value="+6.1%"
+          hint="Mumbai Vashi APMC"
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <Metric
+          label="Avg transport"
+          value={inr(freight) + "/kg"}
+          hint={`${buyerKm} km ${t("to nearest buyer")}`}
+          icon={<Truck className="h-4 w-4" />}
+        />
       </div>
 
       {/* Crop lots */}
@@ -212,8 +258,24 @@ function BuyerDashboard() {
   const { data: transactions = [] } = useTransactions();
 
   const lots = [
-    { crop: "Tomato", quantity: "5,000 kg", grade: "Grade A", price: "₹30/kg", supplier: "Verified farmer network", location: "Nashik", match: 96 },
-    { crop: "Onion", quantity: "8,000 kg", grade: "Grade A", price: "₹20/kg", supplier: "Verified FPO network", location: "Lasalgaon", match: 89 },
+    {
+      crop: "Tomato",
+      quantity: "5,000 kg",
+      grade: "Grade A",
+      price: "₹30/kg",
+      supplier: "Verified farmer network",
+      location: "Nashik",
+      match: 96,
+    },
+    {
+      crop: "Onion",
+      quantity: "8,000 kg",
+      grade: "Grade A",
+      price: "₹20/kg",
+      supplier: "Verified FPO network",
+      location: "Lasalgaon",
+      match: 89,
+    },
   ];
   return (
     <PortalLayout>
@@ -227,26 +289,67 @@ function BuyerDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Active requirements" value={buyerDemands.length} hint="Open sourcing needs" icon={<ClipboardList className="h-4 w-4" />} />
-        <Metric label="Matched lots" value={lots.length} hint="Ready to review" icon={<Search className="h-4 w-4" />} />
-        <Metric label="Active orders" value={transactions.length} hint="Accepted offers" icon={<Boxes className="h-4 w-4" />} />
-        <Metric label="Completed orders" value={transactions.filter((transaction) => transaction.status === "completed").length} hint="Accepted and settled" icon={<IndianRupee className="h-4 w-4" />} />
+        <Metric
+          label="Active requirements"
+          value={buyerDemands.length}
+          hint="Open sourcing needs"
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
+        <Metric
+          label="Matched lots"
+          value={lots.length}
+          hint="Ready to review"
+          icon={<Search className="h-4 w-4" />}
+        />
+        <Metric
+          label="Active orders"
+          value={transactions.length}
+          hint="Accepted offers"
+          icon={<Boxes className="h-4 w-4" />}
+        />
+        <Metric
+          label="Completed orders"
+          value={transactions.filter((transaction) => transaction.status === "completed").length}
+          hint="Accepted and settled"
+          icon={<IndianRupee className="h-4 w-4" />}
+        />
       </div>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-2xl">Active requirements</h2>
-          <Link to="/requirements" className="text-sm underline underline-offset-4">Manage requirements</Link>
+          <Link to="/requirements" className="text-sm underline underline-offset-4">
+            Manage requirements
+          </Link>
         </div>
         <Panel className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-sm">
-              <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
-                {["Crop", "Quantity", "Target price", "Location", "Required by", "Status"].map((heading) => <th key={heading} className="px-6 py-3 font-medium">{heading}</th>)}
-              </tr></thead>
-              <tbody>{buyerDemands.map((requirement) => <tr key={requirement.id} className="border-b border-border/60 last:border-0">
-                <td className="px-6 py-4 font-medium">{requirement.crop_name}</td><td className="px-6 py-4">{requirement.min_quantity_quintals * 100} kg</td><td className="px-6 py-4">₹{requirement.price_per_kg}/kg</td><td className="px-6 py-4">{requirement.delivery_location}</td><td className="px-6 py-4">{requirement.required_by}</td><td className="px-6 py-4"><Pill tone="green">Open</Pill></td>
-              </tr>)}</tbody>
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  {["Crop", "Quantity", "Target price", "Location", "Required by", "Status"].map(
+                    (heading) => (
+                      <th key={heading} className="px-6 py-3 font-medium">
+                        {heading}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {buyerDemands.map((requirement) => (
+                  <tr key={requirement.id} className="border-b border-border/60 last:border-0">
+                    <td className="px-6 py-4 font-medium">{requirement.crop_name}</td>
+                    <td className="px-6 py-4">{requirement.min_quantity_quintals * 100} kg</td>
+                    <td className="px-6 py-4">₹{requirement.price_per_kg}/kg</td>
+                    <td className="px-6 py-4">{requirement.delivery_location}</td>
+                    <td className="px-6 py-4">{requirement.required_by}</td>
+                    <td className="px-6 py-4">
+                      <Pill tone="green">Open</Pill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </Panel>
@@ -259,11 +362,16 @@ function BuyerDashboard() {
         </div>
         <Panel className="p-0">
           {farmerOffers.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No farmer offers are waiting for your response.</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              No farmer offers are waiting for your response.
+            </p>
           ) : (
             <div className="divide-y divide-border">
               {farmerOffers.map((offer) => (
-                <div key={offer.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
+                <div
+                  key={offer.id}
+                  className="flex flex-wrap items-center justify-between gap-4 p-5"
+                >
                   <div>
                     <p className="font-medium">Farmer offer for your requirement</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -272,10 +380,16 @@ function BuyerDashboard() {
                   </div>
                   {offer.status === "pending" ? (
                     <button
-                      onClick={() => acceptOffer.mutate(offer.id, {
-                        onSuccess: () => toast.success("Offer accepted", { description: "The order is now visible to both parties." }),
-                        onError: (error) => toast.error("Could not accept offer", { description: error.message }),
-                      })}
+                      onClick={() =>
+                        acceptOffer.mutate(offer.id, {
+                          onSuccess: () =>
+                            toast.success("Offer accepted", {
+                              description: "The order is now visible to both parties.",
+                            }),
+                          onError: (error) =>
+                            toast.error("Could not accept offer", { description: error.message }),
+                        })
+                      }
                       disabled={acceptOffer.isPending}
                       className="rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60"
                     >
@@ -294,20 +408,95 @@ function BuyerDashboard() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-2xl">Matched produce</h2>
-          <Link to="/browse-produce" className="text-sm underline underline-offset-4">Browse all produce</Link>
+          <Link to="/browse-produce" className="text-sm underline underline-offset-4">
+            Browse all produce
+          </Link>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          {lots.map((lot) => <Panel key={lot.crop}>
-            <div className="flex items-start justify-between gap-3"><div><p className="font-serif text-xl">{lot.crop}</p><p className="mt-1 text-xs text-muted-foreground">{lot.grade} · {lot.location} · {lot.supplier}</p></div><Pill tone="green"><BadgeCheck className="h-3.5 w-3.5" /> {lot.match}% match</Pill></div>
-            <div className="mt-5 grid grid-cols-3 gap-3 text-sm"><div><p className="text-xs text-muted-foreground">Available</p><p>{lot.quantity}</p></div><div><p className="text-xs text-muted-foreground">Price</p><p>{lot.price}</p></div><div><p className="text-xs text-muted-foreground">Delivery</p><p>3–5 days</p></div></div>
-            <div className="mt-5 flex gap-3"><Link to="/browse-produce" className="rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground">View lot</Link><button className="rounded-full border border-border px-4 py-2 text-sm">Send request</button></div>
-          </Panel>)}
+          {lots.map((lot) => (
+            <Panel key={lot.crop}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-serif text-xl">{lot.crop}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {lot.grade} · {lot.location} · {lot.supplier}
+                  </p>
+                </div>
+                <Pill tone="green">
+                  <BadgeCheck className="h-3.5 w-3.5" /> {lot.match}% match
+                </Pill>
+              </div>
+              <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Available</p>
+                  <p>{lot.quantity}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Price</p>
+                  <p>{lot.price}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Delivery</p>
+                  <p>3–5 days</p>
+                </div>
+              </div>
+              <div className="mt-5 flex gap-3">
+                <Link
+                  to="/browse-produce"
+                  className="rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground"
+                >
+                  View lot
+                </Link>
+                <button className="rounded-full border border-border px-4 py-2 text-sm">
+                  Send request
+                </button>
+              </div>
+            </Panel>
+          ))}
         </div>
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-center justify-between"><h2 className="font-serif text-2xl">Active orders</h2><Link to="/orders" className="text-sm underline underline-offset-4">View all orders</Link></div>
-        <Panel className="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm">        <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">{["Produce", "Quantity", "Agreed price", "Status", "Accepted"].map((heading) => <th key={heading} className="px-6 py-3 font-medium">{heading}</th>)}</tr></thead><tbody>{transactions.map((transaction) => <tr key={transaction.id} className="border-b border-border/60 last:border-0"><td className="px-6 py-4 font-medium">{transaction.crop_name}</td><td className="px-6 py-4">{transaction.quantity_quintals * 100} kg</td><td className="px-6 py-4">₹{(transaction.final_price / 100).toFixed(2)}/kg</td><td className="px-6 py-4"><Pill tone="green">Completed</Pill></td><td className="px-6 py-4">{transaction.completed_at}</td></tr>)}</tbody></table></div>{transactions.length === 0 && <p className="p-6 text-sm text-muted-foreground">No completed orders yet. An order appears here after an offer is accepted.</p>}</Panel>
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-2xl">Active orders</h2>
+          <Link to="/orders" className="text-sm underline underline-offset-4">
+            View all orders
+          </Link>
+        </div>
+        <Panel className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-sm">
+              {" "}
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  {["Produce", "Quantity", "Agreed price", "Status", "Accepted"].map((heading) => (
+                    <th key={heading} className="px-6 py-3 font-medium">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((transaction) => (
+                  <tr key={transaction.id} className="border-b border-border/60 last:border-0">
+                    <td className="px-6 py-4 font-medium">{transaction.crop_name}</td>
+                    <td className="px-6 py-4">{transaction.quantity_quintals * 100} kg</td>
+                    <td className="px-6 py-4">₹{(transaction.final_price / 100).toFixed(2)}/kg</td>
+                    <td className="px-6 py-4">
+                      <Pill tone="green">Completed</Pill>
+                    </td>
+                    <td className="px-6 py-4">{transaction.completed_at}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {transactions.length === 0 && (
+            <p className="p-6 text-sm text-muted-foreground">
+              No completed orders yet. An order appears here after an offer is accepted.
+            </p>
+          )}
+        </Panel>
       </section>
     </PortalLayout>
   );

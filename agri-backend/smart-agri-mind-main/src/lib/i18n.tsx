@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { fpoHi } from "./i18n-fpo";
 
 export type LangCode = "en" | "hi" | "mr" | "pa" | "gu" | "ur";
 
@@ -1508,7 +1509,7 @@ const gu: TranslationDict = {
 
 const DICTS: Record<LangCode, TranslationDict> = {
   en: {},
-  hi,
+  hi: { ...fpoHi, ...hi },
   mr,
   pa,
   gu,

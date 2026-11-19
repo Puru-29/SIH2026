@@ -1,11 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { CalendarDays, MapPin, Plus, Truck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, Loader2, MapPin, Plus, Search, Truck } from "lucide-react";
 import { PortalLayout } from "@/components/agri/portal-layout";
 import { PageHeader, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
 import { inr, kg, LOTS, roadKm, transportPerKg } from "@/services";
 import { useCreateLot } from "@/hooks/use-lots";
+import { useCropOptions, useEnsureCrop, useMyLots } from "@/hooks/use-my-lots";
+import { cropEmoji } from "@/lib/crop-catalog";
+import { getSession } from "@/services/session";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
@@ -14,9 +17,15 @@ export const Route = createFileRoute("/crops")({
   head: () => ({
     meta: [
       { title: "My Crops — AgriSense" },
-      { name: "description", content: "Every registered crop lot with its sell, hold or split status." },
+      {
+        name: "description",
+        content: "Every registered crop lot with its sell, hold or split status.",
+      },
       { property: "og:title", content: "My Crops — AgriSense" },
-      { property: "og:description", content: "Track quantity, grade, price and distance for each lot." },
+      {
+        property: "og:description",
+        content: "Track quantity, grade, price and distance for each lot.",
+      },
     ],
   }),
   component: Crops,
@@ -27,69 +36,64 @@ const FILTERS = ["All lots", "SELL NOW", "HOLD", "SPLIT"] as const;
 function Crops() {
   const { location } = useFarmLocation();
   const { t } = useI18n();
+  const signedIn = Boolean(getSession());
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All lots");
-  const [lotsState, setLotsState] = useState(LOTS);
-  const lots = filter === "All lots" ? lotsState : lotsState.filter((l) => l.status === filter);
+  const { lots: myLots, isLoading: lotsLoading, error: lotsError } = useMyLots();
+  // Signed-in users see their own lots; visitors see the sample portfolio.
+  const allLots = signedIn ? myLots : LOTS;
+  const lots = filter === "All lots" ? allLots : allLots.filter((l) => l.status === filter);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formCrop, setFormCrop] = useState("Tomato");
+  const [cropSearch, setCropSearch] = useState("");
   const [formQuantity, setFormQuantity] = useState("5000");
   const [formQuality, setFormQuality] = useState("Grade A");
 
+  const { options: cropOptions, isLive: cropListLive } = useCropOptions();
+  const filteredCrops = useMemo(() => {
+    const q = cropSearch.trim().toLowerCase();
+    const list = q ? cropOptions.filter((c) => c.toLowerCase().includes(q)) : cropOptions;
+    // Let the farmer add a crop that is not in any list yet.
+    if (q && !cropOptions.some((c) => c.toLowerCase() === q)) return [cropSearch.trim(), ...list];
+    return list;
+  }, [cropOptions, cropSearch]);
+
+  const ensureCrop = useEnsureCrop();
   const createLot = useCreateLot();
+  const submitting = ensureCrop.isPending || createLot.isPending;
 
-  function handleRegisterLot(e: React.FormEvent) {
+  async function handleRegisterLot(e: React.FormEvent) {
     e.preventDefault();
-    
-    // Map selected crop to an ID for the backend
-    const cropIdMap: Record<string, number> = {
-      Tomato: 1,
-      Onion: 2,
-      Potato: 3,
-    };
-    
-    const qtyNum = parseInt(formQuantity) || 5000;
-    const cropId = cropIdMap[formCrop] || 1;
+    if (!signedIn) {
+      toast.error(t("Please sign in to register a lot"));
+      return;
+    }
+    const qtyNum = Number(formQuantity);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      toast.error(t("Enter a valid quantity"));
+      return;
+    }
 
-    createLot.mutate(
-      {
-        crop_id: cropId,
+    try {
+      // Resolve the crop name to a backend crop id (creating it if needed).
+      const crop = await ensureCrop.mutateAsync(formCrop);
+      const backendLot = await createLot.mutateAsync({
+        crop_id: crop.id,
         quantity_quintals: qtyNum / 100, // API expects quintals
         expected_quality: formQuality,
-      },
-      {
-        onSuccess: (backendLot) => {
-          toast.success(`Lot #${backendLot.id} registered!`, {
-            description: `${qtyNum} kg of ${formCrop} (${formQuality}) added successfully.`,
-          });
-          
-          const emojis: Record<string, string> = { Tomato: "🍅", Onion: "🧅", Potato: "🥔" };
-          
-          setLotsState([
-            {
-              id: `T${backendLot.id}`,
-              crop: formCrop,
-              emoji: emojis[formCrop] || "🌾",
-              quantity: qtyNum,
-              grade: formQuality,
-              status: "HOLD",
-              price: formCrop === "Tomato" ? 25 : formCrop === "Onion" ? 35 : 20,
-              storagePerKg: 0.5,
-              confidence: 90,
-              harvest: "Today",
-              stateLabel: "Fresh",
-              place: location,
-            },
-            ...lotsState,
-          ]);
-          setIsModalOpen(false);
-        },
-        onError: (err) => {
-          toast.error("Could not register lot", { description: err.message });
-        },
-      }
-    );
+      });
+      toast.success(`Lot #${backendLot.id} registered!`, {
+        description: `${kg(qtyNum)} of ${crop.name} (${formQuality}) added successfully.`,
+      });
+      setFilter("All lots");
+      setCropSearch("");
+      setIsModalOpen(false);
+    } catch (err) {
+      toast.error("Could not register lot", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   return (
@@ -125,6 +129,38 @@ function Crops() {
         ))}
       </div>
 
+      {!signedIn && (
+        <p className="text-sm text-muted-foreground">
+          {t("Showing sample lots. Sign in to see and register your own lots.")}
+        </p>
+      )}
+      {signedIn && lotsLoading && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Loading your lots…")}
+        </p>
+      )}
+      {signedIn && lotsError && (
+        <Panel className="border-destructive/40 text-sm text-destructive">
+          {t("Could not load your lots")}: {lotsError.message}
+        </Panel>
+      )}
+      {signedIn && !lotsLoading && !lotsError && lots.length === 0 && (
+        <Panel className="flex flex-col items-center gap-3 py-12 text-center">
+          <span className="text-4xl">🌾</span>
+          <p className="font-serif text-2xl">
+            {allLots.length === 0 ? t("No lots registered yet") : t("No lots match this filter")}
+          </p>
+          {allLots.length === 0 && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm text-primary-foreground"
+            >
+              <Plus className="h-4 w-4" /> {t("Register lot")}
+            </button>
+          )}
+        </Panel>
+      )}
+
       <div className="grid gap-5 md:grid-cols-2">
         {lots.map((lot) => {
           const km = roadKm(location, lot.place);
@@ -150,7 +186,14 @@ function Crops() {
               <div className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                 {[
                   ["Quantity", kg(lot.quantity)],
-                  ["Offer", `${inr(lot.price)}/kg`],
+                  [
+                    lot.priceSource === "live"
+                      ? "Mandi price"
+                      : lot.priceSource === "estimate"
+                        ? "Est. price"
+                        : "Offer",
+                    `${inr(lot.price)}/kg`,
+                  ],
                   ["Freight", `${inr(freight)}/kg`],
                   ["Net", `${inr(net)}/kg`],
                 ].map(([l, v]) => (
@@ -176,6 +219,7 @@ function Crops() {
               <div className="mt-5 flex gap-3">
                 <Link
                   to="/decision"
+                  search={{ lot: lot.id }}
                   className="rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground"
                 >
                   {t("View decision")}
@@ -192,32 +236,73 @@ function Crops() {
       {/* Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[2rem] border border-border bg-card p-6 shadow-xl">
+          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-border bg-card p-6 shadow-xl">
             <h2 className="font-serif text-2xl">{t("Register a new lot")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Enter the details of your harvest.")}
             </p>
-            
+
             <form onSubmit={handleRegisterLot} className="mt-6 space-y-4">
               <div>
-                <label className="text-sm text-muted-foreground">{t("Crop type")}</label>
-                <select
-                  value={formCrop}
-                  onChange={(e) => setFormCrop(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-                >
-                  <option value="Tomato">{t("Tomato")} 🍅</option>
-                  <option value="Onion">{t("Onion")} 🧅</option>
-                  <option value="Potato">{t("Potato")} 🥔</option>
-                </select>
+                <div className="flex items-baseline justify-between">
+                  <label className="text-sm text-muted-foreground">{t("Crop type")}</label>
+                  <span className="text-[11px] text-muted-foreground">
+                    {cropOptions.length} {t("crops")} ·{" "}
+                    {cropListLive ? t("live Mandi list") : t("offline list")}
+                  </span>
+                </div>
+                <div className="mt-1 rounded-xl border border-border bg-background focus-within:border-primary">
+                  <div className="flex items-center gap-2 border-b border-border px-3">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <input
+                      value={cropSearch}
+                      onChange={(e) => setCropSearch(e.target.value)}
+                      placeholder={t("Search crops, e.g. wheat, cotton, mango")}
+                      aria-label={t("Search crops")}
+                      className="w-full bg-transparent py-2.5 text-sm outline-none"
+                    />
+                  </div>
+                  <ul
+                    role="listbox"
+                    aria-label={t("Crop type")}
+                    className="max-h-48 overflow-y-auto p-1"
+                  >
+                    {filteredCrops.slice(0, 200).map((c) => (
+                      <li key={c}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={formCrop === c}
+                          onClick={() => setFormCrop(c)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm",
+                            formCrop === c
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-secondary",
+                          )}
+                        >
+                          <span>{cropEmoji(c)}</span>
+                          <span className="flex-1">{t(c)}</span>
+                          {!cropOptions.includes(c) && (
+                            <span className="text-[11px] opacity-75">{t("add new")}</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {t("Selected")}: {cropEmoji(formCrop)}{" "}
+                  <strong className="text-foreground">{formCrop}</strong>
+                </p>
               </div>
-              
+
               <div>
                 <label className="text-sm text-muted-foreground">{t("Quantity (kg)")}</label>
                 <input
                   type="number"
-                  min="100"
-                  step="100"
+                  min="1"
+                  step="1"
                   value={formQuantity}
                   onChange={(e) => setFormQuantity(e.target.value)}
                   required
@@ -248,9 +333,10 @@ function Crops() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createLot.isPending}
+                  disabled={submitting}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {t("Register lot")}
                 </button>
               </div>

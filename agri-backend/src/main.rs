@@ -1,6 +1,7 @@
 mod auth;
 mod db;
 mod errors;
+mod fpo;
 mod handlers;
 mod models;
 mod seed;
@@ -60,6 +61,9 @@ async fn main() {
     if let Err(e) = seed::seed_database(&pool).await {
         tracing::error!("Failed to seed database: {}", e);
     }
+    if let Err(e) = seed::ensure_admin(&pool).await {
+        tracing::error!("Failed to create admin account: {}", e);
+    }
 
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
@@ -90,7 +94,10 @@ async fn main() {
         .route("/health", get(handlers::get_health))
         .route("/api/auth/register", post(handlers::register_farmer))
         .route("/api/auth/login", post(handlers::login_farmer))
-        .route("/api/crops", get(handlers::get_crops))
+        .route(
+            "/api/crops",
+            get(handlers::get_crops).post(handlers::create_crop),
+        )
         .route(
             "/api/lots",
             get(handlers::get_lots).post(handlers::create_lot),
@@ -129,6 +136,7 @@ async fn main() {
         .route("/api/offers/:id/accept", post(handlers::accept_offer))
         .route("/api/transactions/:id", get(handlers::get_transaction))
         .route("/api/transactions", get(handlers::get_transactions))
+        .merge(fpo::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(pool);

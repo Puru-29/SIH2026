@@ -23,7 +23,9 @@ export function useOffers() {
   return useQuery<BackendOffer[]>({
     queryKey: ["offers", session?.userId, session?.role],
     queryFn: getOffers,
-    enabled: Boolean(session),
+    // /api/offers serves farmers and buyers only; the global notification
+    // provider mounts this for every role, so skip it for FPO/admin sessions.
+    enabled: session?.role === "farmer" || session?.role === "buyer",
     staleTime: 15_000,
   });
 }

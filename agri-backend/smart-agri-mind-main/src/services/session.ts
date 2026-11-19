@@ -59,6 +59,11 @@ export function clearUser(): void {
   }
 }
 
+/** Where each role lands after signing in. */
+export function homeFor(role: UserRole): "/dashboard" | "/fpo" | "/admin" {
+  return role === "fpo" ? "/fpo" : role === "admin" ? "/admin" : "/dashboard";
+}
+
 /** Convenience: true if the user is signed in. */
 export const isAuthenticated = (): boolean => getSession() !== null;
 

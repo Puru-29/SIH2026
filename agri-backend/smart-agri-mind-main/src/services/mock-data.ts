@@ -5,6 +5,7 @@ import type {
   Faq,
   FarmerProfile,
   FpoPool,
+  SupportedBotLang,
   Testimonial,
   TickerQuote,
 } from "./types";

@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, Sprout, Store } from "lucide-react";
+import { ArrowRight, Sprout, Store, Wheat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 import { LanguageSelector } from "@/components/agri/language-selector";
-import { setUser, type UserRole } from "@/services/session";
+import { homeFor, setUser, type UserRole } from "@/services/session";
 import { getAuthErrorMessage, registerFarmer } from "@/services/api-client";
 import { useGoogleLogin } from "@react-oauth/google";
 
@@ -22,6 +22,7 @@ export const Route = createFileRoute("/register")({
 const ROLES = [
   { id: "farmer", label: "Farmer", icon: Sprout, sub: "Sell your crop lots" },
   { id: "buyer", label: "Buyer", icon: Store, sub: "Source verified produce" },
+  { id: "fpo", label: "FPO", icon: Wheat, sub: "Register your producer organisation" },
 ];
 
 function RegisterPage() {
@@ -53,7 +54,7 @@ function RegisterPage() {
   });
 
   return (
-    <div className={cn("auth-page flex min-h-screen items-center justify-center bg-background px-6 py-12", role === "buyer" && "buyer-auth")}>
+    <div className={cn("auth-page flex min-h-screen items-center justify-center bg-background px-6 py-12", role === "buyer" && "buyer-auth", role === "fpo" && "fpo-portal")}>
       <div className="w-full max-w-lg">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -104,8 +105,8 @@ function RegisterPage() {
                   toast.error("Please set a 4-digit PIN.");
                   return;
                 }
-                if (role !== "farmer" && role !== "buyer") {
-                  toast.error("Only farmer and buyer registration is currently available.");
+                if (role !== "farmer" && role !== "buyer" && role !== "fpo") {
+                  toast.error("Choose farmer, buyer or FPO.");
                   return;
                 }
                 setIsSubmitting(true);
@@ -115,7 +116,7 @@ function RegisterPage() {
                   toast.success("Account created successfully", {
                     description: `Welcome to AgriSense, ${user.name}!`,
                   });
-                  navigate({ to: "/dashboard" });
+                  navigate({ to: homeFor(user.role) });
                 } catch (error) {
                   toast.error("Registration failed", {
                     description: getAuthErrorMessage(error, "register"),

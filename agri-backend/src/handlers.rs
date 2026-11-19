@@ -11,7 +11,7 @@ use crate::{
     db,
     errors::AppError,
     models::{
-        AuthResponse, CreateBuyerDemandRequest, CreateLotRequest, CreateOfferRequest,
+        AuthResponse, CreateBuyerDemandRequest, CreateCropRequest, CreateLotRequest, CreateOfferRequest,
         LiveMandiPricesQuery, LoginRequest, NetRealisationRequest, NetRealisationResponse,
         RegisterFarmerRequest, SmartSaleRequest, SmartSaleResponse, Transaction,
     },
@@ -76,6 +76,21 @@ pub async fn get_crops(
     State(pool): State<SqlitePool>,
 ) -> Result<Json<Vec<crate::models::Crop>>, AppError> {
     Ok(Json(db::get_crops(&pool).await?))
+}
+
+/// Adds a crop (typically a Mandi API commodity) to the catalogue, or returns
+/// the existing one with the same name.
+pub async fn create_crop(
+    State(pool): State<SqlitePool>,
+    auth_user: AuthUser,
+    Json(payload): Json<CreateCropRequest>,
+) -> Result<Json<crate::models::Crop>, AppError> {
+    payload.validate()?;
+    if payload.name.trim().is_empty() {
+        return Err(AppError::BadRequest("Crop name is required".into()));
+    }
+    require_role(&pool, auth_user.user_id, &["farmer", "fpo", "buyer"]).await?;
+    Ok(Json(db::find_or_create_crop(&pool, &payload.name).await?))
 }
 
 pub async fn get_lots(

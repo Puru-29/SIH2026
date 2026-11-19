@@ -20,9 +20,9 @@ pub async fn register_farmer(
     pin: &str,
     role: &str,
 ) -> Result<crate::models::User, AppError> {
-    if !matches!(role, "farmer" | "buyer") {
+    if !matches!(role, "farmer" | "buyer" | "fpo") {
         return Err(AppError::BadRequest(
-            "Only farmer and buyer accounts can be created".into(),
+            "Only farmer, buyer and FPO accounts can be created".into(),
         ));
     }
     let pin_hash = hash_pin(pin);
@@ -52,6 +52,9 @@ pub async fn register_farmer(
         .bind(user.id)
         .execute(&mut *tx)
         .await?;
+    } else if role == "fpo" {
+        // New FPOs start unverified until an admin checks them.
+        crate::fpo::create_org_for_manager(&mut *tx, user.id, &user.name, &user.phone_number).await?;
     } else {
         sqlx::query("INSERT INTO buyers (id, trust_score, is_verified) VALUES (?, 5.0, 0)")
             .bind(user.id)
@@ -198,6 +201,50 @@ pub async fn get_crops(pool: &SqlitePool) -> Result<Vec<Crop>, sqlx::Error> {
     sqlx::query_as::<_, Crop>("SELECT id, name, perishability_days FROM crops ORDER BY name")
         .fetch_all(pool)
         .await
+}
+
+/// Rough shelf life (days) for a commodity name, used when a farmer adds a crop
+/// from the Mandi catalogue that is not yet in our table.
+fn estimate_perishability_days(name: &str) -> i64 {
+    let n = name.to_lowercase();
+    let has = |keys: &[&str]| keys.iter().any(|k| n.contains(k));
+    if has(&["leaf", "coriander", "methi", "spinach", "palak", "mint", "flower", "mushroom", "fish", "milk", "curry"]) {
+        2
+    } else if has(&["tomato", "brinjal", "okra", "bhindi", "ladies", "gourd", "cucumber", "capsicum", "chilli green",
+        "green chilli", "beans", "peas", "cauliflower", "cabbage", "banana", "grapes", "papaya", "mango", "guava",
+        "strawberry", "lemon", "drumstick", "tinda", "pumpkin", "radish", "carrot", "beetroot"]) {
+        7
+    } else if has(&["apple", "orange", "pomegranate", "mosambi", "pineapple", "sweet lime", "water melon", "watermelon", "musk"]) {
+        21
+    } else if has(&["onion", "potato", "garlic", "ginger", "sweet potato", "yam", "colacasia", "tapioca"]) {
+        45
+    } else {
+        // Grains, pulses, oilseeds, spices, fibre and other dry produce.
+        180
+    }
+}
+
+/// Returns the crop with this name (case-insensitive), creating it if needed.
+pub async fn find_or_create_crop(pool: &SqlitePool, name: &str) -> Result<Crop, sqlx::Error> {
+    let name = name.trim();
+    if let Some(crop) = sqlx::query_as::<_, Crop>(
+        "SELECT id, name, perishability_days FROM crops WHERE lower(name) = lower(?)",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await?
+    {
+        return Ok(crop);
+    }
+    sqlx::query_as::<_, Crop>(
+        "INSERT INTO crops (name, perishability_days) VALUES (?, ?)
+         ON CONFLICT(name) DO UPDATE SET name = excluded.name
+         RETURNING id, name, perishability_days",
+    )
+    .bind(name)
+    .bind(estimate_perishability_days(name))
+    .fetch_one(pool)
+    .await
 }
 
 pub async fn get_lot(pool: &SqlitePool, lot_id: i64) -> Result<Option<Lot>, sqlx::Error> {
@@ -436,7 +483,8 @@ pub async fn accept_offer(
 
     let transaction = sqlx::query_as::<_, Transaction>(
         "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals,
+                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
+                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
                 buyer.name AS buyer_name, farmer.name AS farmer_name
          FROM transactions t
          JOIN offers o ON o.id = t.offer_id
@@ -460,7 +508,8 @@ pub async fn get_transaction(
 ) -> Result<Option<Transaction>, sqlx::Error> {
     sqlx::query_as::<_, Transaction>(
         "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals,
+                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
+                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
                 buyer.name AS buyer_name, farmer.name AS farmer_name
          FROM transactions t
          JOIN offers o ON o.id = t.offer_id
@@ -481,7 +530,8 @@ pub async fn get_transactions_for_user(
 ) -> Result<Vec<Transaction>, sqlx::Error> {
     sqlx::query_as::<_, Transaction>(
         "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals,
+                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
+                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
                 buyer.name AS buyer_name, farmer.name AS farmer_name
          FROM transactions t
          JOIN offers o ON o.id = t.offer_id

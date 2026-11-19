@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bot,
   Globe,
+  Languages,
   Mic,
   MicOff,
   Radio,
@@ -27,7 +28,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/agribot")({
   head: () => ({
     meta: [
-      { title: "AgriBot — Multilingual AI Kisan Assistant (Text + Voice) | AgriConnect (SIH 26132)" },
+      {
+        title: "AgriBot — Multilingual AI Kisan Assistant (Text + Voice) | AgriConnect (SIH 26132)",
+      },
       {
         name: "description",
         content:
@@ -36,7 +39,8 @@ export const Route = createFileRoute("/agribot")({
       { property: "og:title", content: "AgriBot — Multilingual AI Voice Assistant" },
       {
         property: "og:description",
-        content: "Speak or type in Marathi, Hindi, Punjabi, Hinglish or English to get live mandi prices, selling windows and grading.",
+        content:
+          "Speak or type in Marathi, Hindi, Punjabi, Hinglish or English to get live mandi prices, selling windows and grading.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -51,6 +55,28 @@ type Msg = {
   lang?: SupportedBotLang;
   confidence?: number;
 };
+
+type LangChoice = "auto" | SupportedBotLang;
+const LANG_CHOICES: SupportedBotLang[] = ["en", "hi", "mr", "pa", "hinglish"];
+const PREFS_KEY = "agribot_lang_prefs";
+
+function loadLangPrefs(): { input: LangChoice; output: LangChoice } {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { input?: string; output?: string };
+      const valid = (v: unknown): v is LangChoice =>
+        v === "auto" || LANG_CHOICES.includes(v as SupportedBotLang);
+      return {
+        input: valid(parsed.input) ? parsed.input : "auto",
+        output: valid(parsed.output) ? parsed.output : "auto",
+      };
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return { input: "auto", output: "auto" };
+}
 
 // Web Speech API interface definitions
 interface IWindowSpeechRecognition extends Window {
@@ -72,6 +98,36 @@ export function AgriBot() {
   const endRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Input language: what the farmer types/speaks in ("auto" = detect per message).
+  // Output language: what AgriBot replies in ("auto" = same as the question).
+  const [inputLang, setInputLang] = useState<LangChoice>("auto");
+  const [outputLang, setOutputLang] = useState<LangChoice>("auto");
+  useEffect(() => {
+    const prefs = loadLangPrefs();
+    setInputLang(prefs.input);
+    setOutputLang(prefs.output);
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ input: inputLang, output: outputLang }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [inputLang, outputLang]);
+
+  // If the conversation is only the greeting, re-greet in the chosen output language.
+  useEffect(() => {
+    if (outputLang === "auto") return;
+    setMessages((prev) =>
+      prev.length === 1 && prev[0]!.role === "bot"
+        ? [{ role: "bot", text: BOT_GREETING[outputLang], lang: outputLang, confidence: 1 }]
+        : prev,
+    );
+  }, [outputLang]);
+
+  const replyLang: SupportedBotLang = outputLang === "auto" ? lastDetectedLang : outputLang;
+  const listenLang: SupportedBotLang = inputLang === "auto" ? lastDetectedLang : inputLang;
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isListening, interimTranscript]);
@@ -81,13 +137,16 @@ export function AgriBot() {
     if (!q) return;
 
     // Run per-message dynamic language detection and response matching
-    const reply = askAgriBot(q, initialLang, lastDetectedLang);
+    const reply = askAgriBot(q, initialLang, lastDetectedLang, {
+      inputLang: inputLang === "auto" ? undefined : inputLang,
+      outputLang: outputLang === "auto" ? undefined : outputLang,
+    });
     setLastDetectedLang(reply.detectedLang);
 
     setMessages((prev) => [
       ...prev,
       { role: "user", text: q, lang: reply.detectedLang, confidence: reply.confidence },
-      { role: "bot", text: reply.text, lang: reply.detectedLang, confidence: reply.confidence },
+      { role: "bot", text: reply.text, lang: reply.responseLang, confidence: 1 },
     ]);
     setDraft("");
     setInterimTranscript("");
@@ -117,7 +176,9 @@ export function AgriBot() {
     // Pick best matching native voice if available in system
     const voices = window.speechSynthesis.getVoices();
     const matchedVoice = voices.find(
-      (v) => v.lang.toLowerCase() === targetLocale.toLowerCase() || v.lang.toLowerCase().startsWith(targetLocale.slice(0, 2))
+      (v) =>
+        v.lang.toLowerCase() === targetLocale.toLowerCase() ||
+        v.lang.toLowerCase().startsWith(targetLocale.slice(0, 2)),
     );
     if (matchedVoice) {
       utter.voice = matchedVoice;
@@ -139,7 +200,9 @@ export function AgriBot() {
     const SpeechRecognitionAPI = win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
-      toast.error(t("Voice recognition not supported in this browser. Please use Chrome, Edge, or Safari."));
+      toast.error(
+        t("Voice recognition not supported in this browser. Please use Chrome, Edge, or Safari."),
+      );
       return;
     }
 
@@ -156,14 +219,17 @@ export function AgriBot() {
       recognition.interimResults = true;
 
       // Match recognition language with active context
-      const recognitionLang = BOT_LANG_INFO[lastDetectedLang]?.speechLocale || BOT_LANG_INFO[initialLang]?.speechLocale || "hi-IN";
+      const recognitionLang =
+        BOT_LANG_INFO[listenLang]?.speechLocale ||
+        BOT_LANG_INFO[initialLang]?.speechLocale ||
+        "hi-IN";
       recognition.lang = recognitionLang;
 
       recognition.onstart = () => {
         setIsListening(true);
         setInterimTranscript("");
         toast.info(t("Listening..."), {
-          description: `Speak in ${BOT_LANG_INFO[lastDetectedLang]?.native || "Marathi / Hindi / English"}`,
+          description: `Speak in ${BOT_LANG_INFO[listenLang]?.native || "Marathi / Hindi / English"}`,
         });
       };
 
@@ -242,14 +308,17 @@ export function AgriBot() {
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <p className="font-medium text-foreground">{t("AgriBot Virtual Kisan Assistant")}</p>
+                <p className="font-medium text-foreground">
+                  {t("AgriBot Virtual Kisan Assistant")}
+                </p>
                 <span className="rounded-md bg-accent/60 px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
                   SIH 26132
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
                 <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-emerald-500 align-middle" />
-                Active · Language: <strong className="text-foreground">{BOT_LANG_INFO[lastDetectedLang]?.native}</strong>
+                Active · {t("Reply in")}:{" "}
+                <strong className="text-foreground">{BOT_LANG_INFO[replyLang]?.native}</strong>
               </p>
             </div>
           </div>
@@ -260,7 +329,7 @@ export function AgriBot() {
                 "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all shadow-xs",
                 isListening
                   ? "border-red-500 bg-red-50 text-red-700 animate-pulse dark:bg-red-950/40 dark:text-red-300"
-                  : "border-border bg-secondary hover:bg-accent/60 text-foreground"
+                  : "border-border bg-secondary hover:bg-accent/60 text-foreground",
               )}
               title={isListening ? t("Stop listening") : t("Click to speak")}
               aria-label={isListening ? t("Stop listening") : t("Click to speak")}
@@ -292,6 +361,67 @@ export function AgriBot() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Language controls */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border bg-secondary/40 px-5 py-3">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Languages className="h-4 w-4 text-primary" /> {t("Language")}
+          </span>
+          {(
+            [
+              [
+                "agribot-input-lang",
+                t("I speak / type in"),
+                inputLang,
+                setInputLang,
+                t("Auto-detect"),
+              ],
+              [
+                "agribot-output-lang",
+                t("Reply in"),
+                outputLang,
+                setOutputLang,
+                t("Same as my question"),
+              ],
+            ] as const
+          ).map(([id, label, value, setValue, autoLabel]) => (
+            <label
+              key={id}
+              htmlFor={id}
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              {label}
+              <select
+                id={id}
+                value={value}
+                onChange={(e) => setValue(e.target.value as LangChoice)}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+              >
+                <option value="auto">{autoLabel}</option>
+                {LANG_CHOICES.map((code) => (
+                  <option key={code} value={code}>
+                    {BOT_LANG_INFO[code].native}
+                    {BOT_LANG_INFO[code].native !== BOT_LANG_INFO[code].name
+                      ? ` · ${BOT_LANG_INFO[code].name}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+          {(inputLang !== "auto" || outputLang !== "auto") && (
+            <button
+              type="button"
+              onClick={() => {
+                setInputLang("auto");
+                setOutputLang("auto");
+              }}
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              {t("Reset to auto")}
+            </button>
+          )}
         </div>
 
         {/* Live Listening Banner */}
@@ -332,7 +462,9 @@ export function AgriBot() {
                   }
                 >
                   <div className="mb-1 flex items-center justify-between gap-3 text-[11px] font-semibold">
-                    <span className={isUser ? "text-primary-foreground/75" : "text-muted-foreground"}>
+                    <span
+                      className={isUser ? "text-primary-foreground/75" : "text-muted-foreground"}
+                    >
                       {isUser ? t("You") : "AgriBot"}
                     </span>
                     {langLabel && (
@@ -343,7 +475,10 @@ export function AgriBot() {
                             : "rounded-full bg-accent px-2 py-0.5 text-[10px] text-accent-foreground"
                         }
                       >
-                        {langLabel} {m.confidence && m.confidence < 0.9 ? `(~${Math.round(m.confidence * 100)}%)` : ""}
+                        {langLabel}{" "}
+                        {m.confidence && m.confidence < 0.9
+                          ? `(~${Math.round(m.confidence * 100)}%)`
+                          : ""}
                       </span>
                     )}
                   </div>
@@ -397,9 +532,11 @@ export function AgriBot() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={
-                  isListening
-                    ? "Listening... Speak in Marathi, Hindi, Punjabi, Hinglish, or English..."
-                    : "Type or speak in Marathi, Hindi, Punjabi, Hinglish, or English..."
+                  inputLang !== "auto"
+                    ? `${isListening ? "Listening... speak" : "Type or speak"} in ${BOT_LANG_INFO[inputLang].native}...`
+                    : isListening
+                      ? "Listening... Speak in Marathi, Hindi, Punjabi, Hinglish, or English..."
+                      : "Type or speak in Marathi, Hindi, Punjabi, Hinglish, or English..."
                 }
                 aria-label="Ask AgriBot in any language or script"
                 className="w-full rounded-full border border-border bg-background py-3 pl-5 pr-12 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -411,7 +548,7 @@ export function AgriBot() {
                   "absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-colors",
                   isListening
                     ? "bg-red-500 text-white animate-pulse"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                 )}
                 title={isListening ? t("Stop listening") : t("Voice input")}
                 aria-label={isListening ? t("Stop listening") : t("Voice input")}
@@ -426,7 +563,7 @@ export function AgriBot() {
                 "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium transition-all shadow-sm",
                 draft.trim()
                   ? "bg-primary text-primary-foreground hover:opacity-90"
-                  : "bg-secondary text-muted-foreground cursor-not-allowed opacity-60"
+                  : "bg-secondary text-muted-foreground cursor-not-allowed opacity-60",
               )}
             >
               <Send className="h-4 w-4" /> {t("Ask AgriBot")}
@@ -438,5 +575,3 @@ export function AgriBot() {
   );
 }
 export default AgriBot;
-
-

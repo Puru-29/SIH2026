@@ -233,7 +233,10 @@ export const fetchBotAnswers = () => delay(BOT_ANSWERS);
 
 export interface AgriBotResponse {
   text: string;
+  /** Language of the farmer's question (detected, or forced by the user). */
   detectedLang: SupportedBotLang;
+  /** Language the reply is written in. */
+  responseLang: SupportedBotLang;
   confidence: number;
   matchedTopic?: string;
 }
@@ -248,13 +251,21 @@ export function askAgriBot(
   question: string,
   contextLang: string = "en",
   lastDetectedLang?: SupportedBotLang,
+  options: {
+    /** Force the input language instead of auto-detecting it. */
+    inputLang?: SupportedBotLang | undefined;
+    /** Reply in this language instead of mirroring the input language. */
+    outputLang?: SupportedBotLang | undefined;
+  } = {},
 ): AgriBotResponse {
   const normContext = (contextLang === "mr" || contextLang === "hi" || contextLang === "pa" || contextLang === "hinglish")
     ? contextLang
     : "en";
 
-  const detection = detectLanguage(question, normContext, lastDetectedLang);
-  const targetLang = detection.lang;
+  const detection = options.inputLang
+    ? { lang: options.inputLang, confidence: 1 }
+    : detectLanguage(question, normContext, lastDetectedLang);
+  const targetLang = options.outputLang ?? detection.lang;
   const q = question.toLowerCase();
 
   const has = (...keys: string[]) => keys.some((k) => q.includes(k.toLowerCase()));
@@ -311,7 +322,8 @@ export function askAgriBot(
 
   return {
     text: replyText,
-    detectedLang: targetLang,
+    detectedLang: detection.lang,
+    responseLang: targetLang,
     confidence: detection.confidence,
     matchedTopic,
   };

@@ -23,6 +23,8 @@ import {
   Users,
   Wallet,
   MessageSquare,
+  ShieldCheck,
+  Wheat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationSelector } from "./location-selector";
@@ -45,9 +47,12 @@ const FARMER_NAV = [
   { to: "/logistics", label: "Logistics", icon: Truck },
   { to: "/storage", label: "Cold Chain & Storage", icon: Snowflake },
   { to: "/payments", label: "Settlements", icon: Wallet },
+  { to: "/my-fpo", label: "My FPO", icon: Wheat },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
+
+const ADMIN_NAV = [{ to: "/admin", label: "Verification", icon: ShieldCheck }] as const;
 
 const BUYER_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -73,12 +78,15 @@ export function PortalLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) {
       void navigate({ to: "/auth" });
+    } else if (session.role === "fpo") {
+      // FPO managers have their own portal.
+      void navigate({ to: "/fpo" });
     }
   }, [navigate, session]);
-  if (!session) return null;
+  if (!session || session.role === "fpo") return null;
   const userName = session?.name || "Ramesh Patil";
   const isBuyer = session?.role === "buyer";
-  const nav = isBuyer ? BUYER_NAV : FARMER_NAV;
+  const nav = isBuyer ? BUYER_NAV : session.role === "admin" ? ADMIN_NAV : FARMER_NAV;
 
   return (
     <div className={cn("min-h-screen bg-background", isBuyer && "buyer-portal")}>
@@ -156,7 +164,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <p className="hidden text-sm text-muted-foreground md:block">
-            {session?.role === "buyer" ? t("Buyer portal") : t("Farmer portal")} · {userName}
+            {session?.role === "buyer" ? t("Buyer portal") : session?.role === "admin" ? t("Admin") : t("Farmer portal")} · {userName}
           </p>
           <div className="ml-auto flex items-center gap-2.5">
             <FontSizeControl className="hidden sm:flex" />

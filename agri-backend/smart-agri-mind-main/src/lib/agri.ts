@@ -61,6 +61,11 @@ export type Lot = {
   stateLabel: string;
   confidence: number;
   place: Place;
+  /** Set for lots that come from the backend (registered by this user). */
+  backendId?: number;
+  cropId?: number;
+  /** "live" = priced from today's Mandi records; "estimate" = fallback price. */
+  priceSource?: "live" | "estimate";
 };
 
 const place = (id: string) => LOCATIONS.find((l) => l.id === id)!;

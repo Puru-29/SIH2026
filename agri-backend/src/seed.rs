@@ -1,4 +1,33 @@
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
+
+/// Creates or updates the platform admin from ADMIN_PHONE / ADMIN_PIN.
+/// No admin exists unless both variables are set — there is no default password.
+pub async fn ensure_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let (Ok(phone), Ok(pin)) = (std::env::var("ADMIN_PHONE"), std::env::var("ADMIN_PIN")) else {
+        return Ok(());
+    };
+    if phone.len() != 10
+        || !phone.chars().all(|c| c.is_ascii_digit())
+        || pin.len() != 4
+        || !pin.chars().all(|c| c.is_ascii_digit())
+    {
+        tracing::warn!(
+            "ADMIN_PHONE must be 10 digits and ADMIN_PIN 4 digits; admin account not created"
+        );
+        return Ok(());
+    }
+    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
+    sqlx::query(
+        "INSERT INTO users (name, role, phone_number, pin_hash) VALUES ('AgriSense Admin', 'admin', ?, ?)
+         ON CONFLICT(phone_number) DO UPDATE SET pin_hash = excluded.pin_hash WHERE users.role = 'admin'",
+    )
+    .bind(&phone)
+    .bind(&hash)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
 
 // Loads demo data on first run. IDs 1–4 are fixed so README curl examples keep working.
 pub async fn seed_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {

@@ -308,3 +308,65 @@
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
+
+/* FPO portal: cream workspace, deep olive + dark green accents and a wheat-gold
+ * highlight, with an olive→forest gradient rail. Distinct from the flat cream
+ * farmer portal and the orange buyer portal. */
+.fpo-portal {
+  --background: oklch(0.982 0.013 95);
+  --foreground: oklch(0.24 0.03 115);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.03 115);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.03 115);
+  --primary: oklch(0.43 0.09 118);
+  --primary-foreground: oklch(0.985 0.012 95);
+  --secondary: oklch(0.955 0.02 100);
+  --secondary-foreground: oklch(0.3 0.05 118);
+  --muted: oklch(0.955 0.02 100);
+  --muted-foreground: oklch(0.47 0.035 110);
+  --accent: oklch(0.93 0.055 112);
+  --accent-foreground: oklch(0.33 0.075 120);
+  --border: oklch(0.9 0.022 100);
+  --input: oklch(0.86 0.025 100);
+  --ring: oklch(0.43 0.09 118);
+  --fpo-gold: oklch(0.8 0.14 82);
+  --fpo-gold-ink: oklch(0.27 0.06 70);
+  --fpo-good: oklch(0.46 0.12 150);
+  --fpo-good-soft: oklch(0.94 0.05 150);
+  --fpo-warn: oklch(0.52 0.12 65);
+  --fpo-warn-soft: oklch(0.95 0.06 85);
+  --fpo-gradient: linear-gradient(160deg, oklch(0.47 0.1 112) 0%, oklch(0.35 0.08 132) 52%, oklch(0.25 0.055 155) 100%);
+  --fpo-hero: linear-gradient(120deg, oklch(0.45 0.1 113) 0%, oklch(0.33 0.075 140) 60%, oklch(0.27 0.06 158) 100%);
+  background: var(--background);
+  color: var(--foreground);
+}
+.fpo-rail {
+  background: var(--fpo-gradient);
+  color: oklch(0.96 0.02 100);
+}
+.fpo-hero {
+  background: var(--fpo-hero);
+  color: oklch(0.985 0.012 95);
+}
+.fpo-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px oklch(0.3 0.04 115 / 0.05), 0 6px 20px -8px oklch(0.3 0.04 115 / 0.12);
+}
+@media print {
+  .fpo-rail, .fpo-topbar, .no-print { display: none !important; }
+  .fpo-main { padding: 0 !important; margin: 0 !important; }
+  .fpo-card { box-shadow: none; border-color: #ccc; }
+}
+
+/* FPO status colours are also used by shared badges on farmer/buyer/admin pages. */
+:root {
+  --fpo-gold: oklch(0.8 0.14 82);
+  --fpo-gold-ink: oklch(0.27 0.06 70);
+  --fpo-good: oklch(0.46 0.12 150);
+  --fpo-good-soft: oklch(0.94 0.05 150);
+  --fpo-warn: oklch(0.52 0.12 65);
+  --fpo-warn-soft: oklch(0.95 0.06 85);
+}

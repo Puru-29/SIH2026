@@ -5,7 +5,7 @@
  * GET  /api/lots/:id/matching-buyers   — demand records that match a lot
  */
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createLot,
   getMatchingBuyers,
@@ -30,8 +30,11 @@ export function useLots() {
 
 /** Create a new farmer lot. Requires X-User-Id with farmer/fpo role. */
 export function useCreateLot() {
+  const qc = useQueryClient();
   return useMutation<BackendLot, Error, CreateLotRequest>({
     mutationFn: createLot,
+    // Refetch so the new lot shows up on My Crops, Decision and Dashboard.
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["lots"] }),
   });
 }
 

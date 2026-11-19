@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AgribotRouteImport } from './routes/agribot'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BrowseProduceRouteImport } from './routes/browse-produce'
@@ -22,6 +23,7 @@ import { Route as FpoRouteImport } from './routes/fpo'
 import { Route as LogisticsRouteImport } from './routes/logistics'
 import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MyFpoRouteImport } from './routes/my-fpo'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PaymentsRouteImport } from './routes/payments'
@@ -30,10 +32,27 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RequirementsRouteImport } from './routes/requirements'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
+import { Route as FpoIndexRouteImport } from './routes/fpo.index'
+import { Route as FpoAggregationRouteImport } from './routes/fpo.aggregation'
+import { Route as FpoFarmersRouteImport } from './routes/fpo.farmers'
+import { Route as FpoGrievancesRouteImport } from './routes/fpo.grievances'
+import { Route as FpoInventoryRouteImport } from './routes/fpo.inventory'
+import { Route as FpoLogisticsRouteImport } from './routes/fpo.logistics'
+import { Route as FpoMarketRouteImport } from './routes/fpo.market'
+import { Route as FpoMarketplaceRouteImport } from './routes/fpo.marketplace'
+import { Route as FpoQualityRouteImport } from './routes/fpo.quality'
+import { Route as FpoReportsRouteImport } from './routes/fpo.reports'
+import { Route as FpoSettingsRouteImport } from './routes/fpo.settings'
+import { Route as FpoTransactionsRouteImport } from './routes/fpo.transactions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgribotRoute = AgribotRouteImport.update({
@@ -96,6 +115,11 @@ const MessagesRoute = MessagesRouteImport.update({
   path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyFpoRoute = MyFpoRouteImport.update({
+  id: '/my-fpo',
+  path: '/my-fpo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -136,9 +160,70 @@ const SuppliersRoute = SuppliersRouteImport.update({
   path: '/suppliers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FpoIndexRoute = FpoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoAggregationRoute = FpoAggregationRouteImport.update({
+  id: '/aggregation',
+  path: '/aggregation',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoFarmersRoute = FpoFarmersRouteImport.update({
+  id: '/farmers',
+  path: '/farmers',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoGrievancesRoute = FpoGrievancesRouteImport.update({
+  id: '/grievances',
+  path: '/grievances',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoInventoryRoute = FpoInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoLogisticsRoute = FpoLogisticsRouteImport.update({
+  id: '/logistics',
+  path: '/logistics',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoMarketRoute = FpoMarketRouteImport.update({
+  id: '/market',
+  path: '/market',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoMarketplaceRoute = FpoMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoQualityRoute = FpoQualityRouteImport.update({
+  id: '/quality',
+  path: '/quality',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoReportsRoute = FpoReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoSettingsRoute = FpoSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => FpoRoute,
+} as any)
+const FpoTransactionsRoute = FpoTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => FpoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/agribot': typeof AgribotRoute
   '/auth': typeof AuthRoute
   '/browse-produce': typeof BrowseProduceRoute
@@ -147,10 +232,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/decision': typeof DecisionRoute
   '/forecast': typeof ForecastRoute
-  '/fpo': typeof FpoRoute
+  '/fpo': typeof FpoRouteWithChildren
   '/logistics': typeof LogisticsRoute
   '/markets': typeof MarketsRoute
   '/messages': typeof MessagesRoute
+  '/my-fpo': typeof MyFpoRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/payments': typeof PaymentsRoute
@@ -159,9 +245,22 @@ export interface FileRoutesByFullPath {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/fpo/aggregation': typeof FpoAggregationRoute
+  '/fpo/farmers': typeof FpoFarmersRoute
+  '/fpo/grievances': typeof FpoGrievancesRoute
+  '/fpo/inventory': typeof FpoInventoryRoute
+  '/fpo/logistics': typeof FpoLogisticsRoute
+  '/fpo/market': typeof FpoMarketRoute
+  '/fpo/marketplace': typeof FpoMarketplaceRoute
+  '/fpo/quality': typeof FpoQualityRoute
+  '/fpo/reports': typeof FpoReportsRoute
+  '/fpo/settings': typeof FpoSettingsRoute
+  '/fpo/transactions': typeof FpoTransactionsRoute
+  '/fpo/': typeof FpoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/agribot': typeof AgribotRoute
   '/auth': typeof AuthRoute
   '/browse-produce': typeof BrowseProduceRoute
@@ -170,10 +269,10 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/decision': typeof DecisionRoute
   '/forecast': typeof ForecastRoute
-  '/fpo': typeof FpoRoute
   '/logistics': typeof LogisticsRoute
   '/markets': typeof MarketsRoute
   '/messages': typeof MessagesRoute
+  '/my-fpo': typeof MyFpoRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/payments': typeof PaymentsRoute
@@ -182,10 +281,23 @@ export interface FileRoutesByTo {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/fpo/aggregation': typeof FpoAggregationRoute
+  '/fpo/farmers': typeof FpoFarmersRoute
+  '/fpo/grievances': typeof FpoGrievancesRoute
+  '/fpo/inventory': typeof FpoInventoryRoute
+  '/fpo/logistics': typeof FpoLogisticsRoute
+  '/fpo/market': typeof FpoMarketRoute
+  '/fpo/marketplace': typeof FpoMarketplaceRoute
+  '/fpo/quality': typeof FpoQualityRoute
+  '/fpo/reports': typeof FpoReportsRoute
+  '/fpo/settings': typeof FpoSettingsRoute
+  '/fpo/transactions': typeof FpoTransactionsRoute
+  '/fpo': typeof FpoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/agribot': typeof AgribotRoute
   '/auth': typeof AuthRoute
   '/browse-produce': typeof BrowseProduceRoute
@@ -194,10 +306,11 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/decision': typeof DecisionRoute
   '/forecast': typeof ForecastRoute
-  '/fpo': typeof FpoRoute
+  '/fpo': typeof FpoRouteWithChildren
   '/logistics': typeof LogisticsRoute
   '/markets': typeof MarketsRoute
   '/messages': typeof MessagesRoute
+  '/my-fpo': typeof MyFpoRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/payments': typeof PaymentsRoute
@@ -206,11 +319,24 @@ export interface FileRoutesById {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/fpo/aggregation': typeof FpoAggregationRoute
+  '/fpo/farmers': typeof FpoFarmersRoute
+  '/fpo/grievances': typeof FpoGrievancesRoute
+  '/fpo/inventory': typeof FpoInventoryRoute
+  '/fpo/logistics': typeof FpoLogisticsRoute
+  '/fpo/market': typeof FpoMarketRoute
+  '/fpo/marketplace': typeof FpoMarketplaceRoute
+  '/fpo/quality': typeof FpoQualityRoute
+  '/fpo/reports': typeof FpoReportsRoute
+  '/fpo/settings': typeof FpoSettingsRoute
+  '/fpo/transactions': typeof FpoTransactionsRoute
+  '/fpo/': typeof FpoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/agribot'
     | '/auth'
     | '/browse-produce'
@@ -223,6 +349,7 @@ export interface FileRouteTypes {
     | '/logistics'
     | '/markets'
     | '/messages'
+    | '/my-fpo'
     | '/notifications'
     | '/orders'
     | '/payments'
@@ -231,9 +358,22 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/fpo/aggregation'
+    | '/fpo/farmers'
+    | '/fpo/grievances'
+    | '/fpo/inventory'
+    | '/fpo/logistics'
+    | '/fpo/market'
+    | '/fpo/marketplace'
+    | '/fpo/quality'
+    | '/fpo/reports'
+    | '/fpo/settings'
+    | '/fpo/transactions'
+    | '/fpo/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/agribot'
     | '/auth'
     | '/browse-produce'
@@ -242,10 +382,10 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/decision'
     | '/forecast'
-    | '/fpo'
     | '/logistics'
     | '/markets'
     | '/messages'
+    | '/my-fpo'
     | '/notifications'
     | '/orders'
     | '/payments'
@@ -254,9 +394,22 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/fpo/aggregation'
+    | '/fpo/farmers'
+    | '/fpo/grievances'
+    | '/fpo/inventory'
+    | '/fpo/logistics'
+    | '/fpo/market'
+    | '/fpo/marketplace'
+    | '/fpo/quality'
+    | '/fpo/reports'
+    | '/fpo/settings'
+    | '/fpo/transactions'
+    | '/fpo'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/agribot'
     | '/auth'
     | '/browse-produce'
@@ -269,6 +422,7 @@ export interface FileRouteTypes {
     | '/logistics'
     | '/markets'
     | '/messages'
+    | '/my-fpo'
     | '/notifications'
     | '/orders'
     | '/payments'
@@ -277,10 +431,23 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/fpo/aggregation'
+    | '/fpo/farmers'
+    | '/fpo/grievances'
+    | '/fpo/inventory'
+    | '/fpo/logistics'
+    | '/fpo/market'
+    | '/fpo/marketplace'
+    | '/fpo/quality'
+    | '/fpo/reports'
+    | '/fpo/settings'
+    | '/fpo/transactions'
+    | '/fpo/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AgribotRoute: typeof AgribotRoute
   AuthRoute: typeof AuthRoute
   BrowseProduceRoute: typeof BrowseProduceRoute
@@ -289,10 +456,11 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DecisionRoute: typeof DecisionRoute
   ForecastRoute: typeof ForecastRoute
-  FpoRoute: typeof FpoRoute
+  FpoRoute: typeof FpoRouteWithChildren
   LogisticsRoute: typeof LogisticsRoute
   MarketsRoute: typeof MarketsRoute
   MessagesRoute: typeof MessagesRoute
+  MyFpoRoute: typeof MyFpoRoute
   NotificationsRoute: typeof NotificationsRoute
   OrdersRoute: typeof OrdersRoute
   PaymentsRoute: typeof PaymentsRoute
@@ -310,6 +478,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agribot': {
@@ -396,6 +571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my-fpo': {
+      id: '/my-fpo'
+      path: '/my-fpo'
+      fullPath: '/my-fpo'
+      preLoaderRoute: typeof MyFpoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notifications': {
       id: '/notifications'
       path: '/notifications'
@@ -452,11 +634,128 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuppliersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fpo/': {
+      id: '/fpo/'
+      path: '/'
+      fullPath: '/fpo/'
+      preLoaderRoute: typeof FpoIndexRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/aggregation': {
+      id: '/fpo/aggregation'
+      path: '/aggregation'
+      fullPath: '/fpo/aggregation'
+      preLoaderRoute: typeof FpoAggregationRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/farmers': {
+      id: '/fpo/farmers'
+      path: '/farmers'
+      fullPath: '/fpo/farmers'
+      preLoaderRoute: typeof FpoFarmersRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/grievances': {
+      id: '/fpo/grievances'
+      path: '/grievances'
+      fullPath: '/fpo/grievances'
+      preLoaderRoute: typeof FpoGrievancesRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/inventory': {
+      id: '/fpo/inventory'
+      path: '/inventory'
+      fullPath: '/fpo/inventory'
+      preLoaderRoute: typeof FpoInventoryRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/logistics': {
+      id: '/fpo/logistics'
+      path: '/logistics'
+      fullPath: '/fpo/logistics'
+      preLoaderRoute: typeof FpoLogisticsRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/market': {
+      id: '/fpo/market'
+      path: '/market'
+      fullPath: '/fpo/market'
+      preLoaderRoute: typeof FpoMarketRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/marketplace': {
+      id: '/fpo/marketplace'
+      path: '/marketplace'
+      fullPath: '/fpo/marketplace'
+      preLoaderRoute: typeof FpoMarketplaceRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/quality': {
+      id: '/fpo/quality'
+      path: '/quality'
+      fullPath: '/fpo/quality'
+      preLoaderRoute: typeof FpoQualityRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/reports': {
+      id: '/fpo/reports'
+      path: '/reports'
+      fullPath: '/fpo/reports'
+      preLoaderRoute: typeof FpoReportsRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/settings': {
+      id: '/fpo/settings'
+      path: '/settings'
+      fullPath: '/fpo/settings'
+      preLoaderRoute: typeof FpoSettingsRouteImport
+      parentRoute: typeof FpoRoute
+    }
+    '/fpo/transactions': {
+      id: '/fpo/transactions'
+      path: '/transactions'
+      fullPath: '/fpo/transactions'
+      preLoaderRoute: typeof FpoTransactionsRouteImport
+      parentRoute: typeof FpoRoute
+    }
   }
 }
 
+interface FpoRouteChildren {
+  FpoAggregationRoute: typeof FpoAggregationRoute
+  FpoFarmersRoute: typeof FpoFarmersRoute
+  FpoGrievancesRoute: typeof FpoGrievancesRoute
+  FpoInventoryRoute: typeof FpoInventoryRoute
+  FpoLogisticsRoute: typeof FpoLogisticsRoute
+  FpoMarketRoute: typeof FpoMarketRoute
+  FpoMarketplaceRoute: typeof FpoMarketplaceRoute
+  FpoQualityRoute: typeof FpoQualityRoute
+  FpoReportsRoute: typeof FpoReportsRoute
+  FpoSettingsRoute: typeof FpoSettingsRoute
+  FpoTransactionsRoute: typeof FpoTransactionsRoute
+  FpoIndexRoute: typeof FpoIndexRoute
+}
+
+const FpoRouteChildren: FpoRouteChildren = {
+  FpoAggregationRoute: FpoAggregationRoute,
+  FpoFarmersRoute: FpoFarmersRoute,
+  FpoGrievancesRoute: FpoGrievancesRoute,
+  FpoInventoryRoute: FpoInventoryRoute,
+  FpoLogisticsRoute: FpoLogisticsRoute,
+  FpoMarketRoute: FpoMarketRoute,
+  FpoMarketplaceRoute: FpoMarketplaceRoute,
+  FpoQualityRoute: FpoQualityRoute,
+  FpoReportsRoute: FpoReportsRoute,
+  FpoSettingsRoute: FpoSettingsRoute,
+  FpoTransactionsRoute: FpoTransactionsRoute,
+  FpoIndexRoute: FpoIndexRoute,
+}
+
+const FpoRouteWithChildren = FpoRoute._addFileChildren(FpoRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AgribotRoute: AgribotRoute,
   AuthRoute: AuthRoute,
   BrowseProduceRoute: BrowseProduceRoute,
@@ -465,10 +764,11 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DecisionRoute: DecisionRoute,
   ForecastRoute: ForecastRoute,
-  FpoRoute: FpoRoute,
+  FpoRoute: FpoRouteWithChildren,
   LogisticsRoute: LogisticsRoute,
   MarketsRoute: MarketsRoute,
   MessagesRoute: MessagesRoute,
+  MyFpoRoute: MyFpoRoute,
   NotificationsRoute: NotificationsRoute,
   OrdersRoute: OrdersRoute,
   PaymentsRoute: PaymentsRoute,

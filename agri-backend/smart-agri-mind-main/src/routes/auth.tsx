@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Sprout, Store, User } from "lucide-react";
+import { ArrowRight, ShieldCheck, Sprout, Store, User, Wheat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationSelector } from "@/components/agri/location-selector";
 import { LanguageSelector } from "@/components/agri/language-selector";
 import { useI18n } from "@/lib/i18n";
-import { loginAsDemo, setUser, type UserRole } from "@/services/session";
+import { homeFor, loginAsDemo, setUser, type UserRole } from "@/services/session";
 import { getAuthErrorMessage, loginFarmer } from "@/services/api-client";
 
 export const Route = createFileRoute("/auth")({
@@ -24,6 +24,8 @@ export const Route = createFileRoute("/auth")({
 const ROLES = [
   { id: "farmer", label: "Farmer", icon: Sprout, sub: "Sell your crop lots" },
   { id: "buyer", label: "Buyer", icon: Store, sub: "Source verified produce" },
+  { id: "fpo", label: "FPO", icon: Wheat, sub: "Pool crops and sell in bulk" },
+  { id: "admin", label: "Admin", icon: ShieldCheck, sub: "Verify FPOs and buyers" },
 ];
 
 function AuthPage() {
@@ -37,7 +39,7 @@ function AuthPage() {
   const { t } = useI18n();
 
   return (
-    <div className={cn("auth-page flex min-h-screen items-center justify-center bg-background px-6 py-12", role === "buyer" && "buyer-auth")}>
+    <div className={cn("auth-page flex min-h-screen items-center justify-center bg-background px-6 py-12", role === "buyer" && "buyer-auth", role === "fpo" && "fpo-portal")}>
       <div className="w-full max-w-lg">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -90,16 +92,12 @@ function AuthPage() {
                 }
                 setIsSubmitting(true);
                 try {
-                  if (role !== "farmer" && role !== "buyer") {
-                    toast.error("Only farmer and buyer sign in is currently available.");
-                    return;
-                  }
-                  const user = await loginFarmer(phone, pin, role);
+                  const user = await loginFarmer(phone, pin, role as UserRole);
                   setUser(user.user_id, user.role, user.name);
                   toast.success("Login successful", {
                     description: `Welcome back, ${user.name}.`,
                   });
-                  navigate({ to: "/dashboard" });
+                  navigate({ to: homeFor(user.role) });
                 } catch (error) {
                   toast.error("Login failed", {
                     description: getAuthErrorMessage(error, "login"),
@@ -177,6 +175,17 @@ function AuthPage() {
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-6 py-3 text-sm transition-colors hover:bg-secondary"
               >
                 <User className="h-4 w-4" /> {t("Continue as demo farmer (Ramesh)")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Seeded FPO account (user 3, "Punjab Kisan FPO").
+                  setUser(3, "fpo", "Punjab Kisan FPO");
+                  navigate({ to: "/fpo" });
+                }}
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-6 py-3 text-sm transition-colors hover:bg-secondary"
+              >
+                <Wheat className="h-4 w-4" /> {t("Continue as demo FPO")}
               </button>
             </form>
           ) : (
