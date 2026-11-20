@@ -40,7 +40,7 @@ There is no default admin password. The admin account is created only when `ADMI
 | Area | Technology |
 |---|---|
 | Backend | Rust 2021, Axum 0.7, Tokio, SQLx 0.7 with SQLite (WAL), Argon2 PIN hashing |
-| External data | [Mandi API](agri-backend/MANDI-API-SPEC.md) for live and historical mandi prices (no key needed) |
+| External data | [Mandi API](docs/api/MANDI-API-SPEC.md) for live and historical mandi prices (no key needed) |
 | Frontend | React 19, TanStack Start / Router / Query, Vite, TypeScript, Tailwind CSS 4, Recharts |
 | Languages | English, Hindi, Marathi, Punjabi, Gujarati (the newer FPO, admin and deal screens cover English, Hindi, Punjabi and Gujarati) |
 
@@ -48,36 +48,47 @@ There is no default admin password. The admin account is created only when `ADMI
 
 You need Rust (stable), Node.js 20.19 or newer with npm (or Bun), and internet access for live mandi prices.
 
-**1. Backend** (from the repository root):
+**Quick start (both at once)**
 
 ```powershell
-cd agri-backend
+.\scripts\dev.ps1        # Windows
+./scripts/dev.sh          # macOS / Linux
+```
+
+Each script copies `backend/.env.example` to `backend/.env` if it is missing, starts the backend (`cargo run` in `backend/`) and the frontend (`npm run dev` in `frontend/`, running `npm install` first if needed). Set `ADMIN_PHONE` and `ADMIN_PIN` in `backend/.env` to get an admin account.
+
+**Or run them separately**
+
+**1. Backend** (always from `backend/`, because `DATABASE_URL=sqlite:agri_prototype.db` is relative to where `cargo run` starts):
+
+```powershell
+cd backend
 copy .env.example .env      # then set ADMIN_PHONE and ADMIN_PIN
 $env:PORT = "3001"
 cargo run
 ```
 
-On macOS or Linux: `cd agri-backend && cp .env.example .env && PORT=3001 cargo run`.
+On macOS or Linux: `cd backend && cp .env.example .env && PORT=3001 cargo run`.
 
-The first start creates `agri_prototype.db`, applies the migrations and loads the demo data. Check it with `curl http://localhost:3001/health`.
+The first start creates `backend/agri_prototype.db`, applies the migrations and loads the demo data. Check it with `curl http://localhost:3001/health`.
 
 **2. Frontend** (second terminal):
 
 ```powershell
-cd agri-backend\smart-agri-mind-main
+cd frontend
 npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. Vite forwards `/api` to the backend on port 3001.
+Open <http://localhost:5173>. Vite forwards `/api` to the backend on port 3001. See [frontend/README.md](frontend/README.md) for more.
 
 **Checks**
 
 ```powershell
-# backend (from agri-backend)
+# backend (from backend/)
 cargo test
 cargo clippy --all-targets
-# frontend (from agri-backend/smart-agri-mind-main)
+# frontend (from frontend/)
 npm run lint
 npm run build
 ```
@@ -96,18 +107,28 @@ npm run build
 ## Repository layout
 
 ```text
-.
-├── README.md                  # this file
-├── docs/screenshots/
-└── agri-backend/
-    ├── README.md              # backend details and the full API reference
-    ├── .env.example
-    ├── migrations/            # SQLx migrations (never edit an applied one)
-    ├── src/                   # Rust API
-    └── smart-agri-mind-main/  # React frontend
+AgriSense/
+├── README.md                # this file
+├── backend/                 # Rust API (Axum + SQLx, SQLite)
+│   ├── README.md            # architecture, configuration and the full API reference
+│   ├── .env.example
+│   ├── Cargo.toml
+│   ├── migrations/          # SQLx migrations (never edit an applied one)
+│   └── src/
+├── frontend/                # React app (Vite + TanStack Start/Router)
+│   ├── README.md
+│   ├── public/
+│   └── src/
+├── docs/
+│   ├── api/MANDI-API-SPEC.md
+│   ├── database/migrations.md
+│   └── screenshots/
+└── scripts/
+    ├── dev.ps1              # start backend + frontend (Windows)
+    └── dev.sh               # start backend + frontend (macOS / Linux)
 ```
 
-See [agri-backend/README.md](agri-backend/README.md) for the architecture, configuration and every API endpoint.
+See [backend/README.md](backend/README.md) for the architecture, configuration and every API endpoint, and [frontend/README.md](frontend/README.md) for the frontend.
 
 ## Honest limits
 

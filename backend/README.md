@@ -1,6 +1,6 @@
 # AgriSense backend
 
-Rust API for the AgriSense farmer, buyer, FPO and admin portals. The React frontend is in [`smart-agri-mind-main/`](smart-agri-mind-main/); see the [root README](../README.md) for the product overview, demo logins and how to run both.
+Rust API for the AgriSense farmer, buyer, FPO and admin portals. The React frontend is in [`frontend/`](../frontend/); see the [root README](../README.md) for the product overview, demo logins and how to run both.
 
 ## Architecture
 
@@ -194,7 +194,7 @@ Lists in the admin API are paginated: `{ items, total, page, limit, pages }`.
 
 ## Database and demo data
 
-- Migrations in `migrations/` run on start. **Never edit an applied migration**; see [migrations/README.md](migrations/README.md).
+- Migrations in `migrations/` run on start. **Never edit an applied migration**; see [docs/database/migrations.md](../docs/database/migrations.md).
 - `seed.rs` loads master data, the admin (from env) and demo accounts. `seed_demo.rs` adds demo data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
 - Delete the database file to start over.
 

@@ -1,29 +1,38 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.local
+.dev.vars
+
 # Local SQLite databases (never commit data)
 *.db
 *.db-shm
 *.db-wal
 
-# Secrets and local configuration
-.env
-.env.*
-!.env.example
+# Backend build output
+backend/target/
+backend/target-live/
 
-# Build output and dependencies
-target/
-target-live/
-node_modules/
-dist/
-.output/
-.nitro/
-.wrangler/
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.output/
+frontend/.vinxi/
+frontend/.nitro/
+frontend/.wrangler/
+frontend/.tanstack/
+
+# Logs
+logs/
+*.log
 
 # Editors and OS
 .DS_Store
 Thumbs.db
+.idea/
+*.suo
+*.sw?
 .vscode/*
 !.vscode/extensions.json
-
-# Vite / TanStack temp files
-.tanstack/
-.wrangler/
-.nitro/
