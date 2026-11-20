@@ -222,7 +222,7 @@ export function TrustMetrics() {
       </div>
       <p className="mx-auto mt-10 flex max-w-6xl items-center gap-2 px-6 text-xs text-primary-foreground/65">
         <Lock className="h-3.5 w-3.5" />{" "}
-        {t("Bank details are stored on your device in this demo — no data leaves the browser.")}
+        {t("Bank details are stored on your device — no data leaves the browser.")}
       </p>
     </section>
   );

@@ -52,7 +52,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Where do the mandi prices come from?",
-    a: "This prototype runs on demo data modelled on APMC arrival and price patterns for Maharashtra, Karnataka and Andhra Pradesh belts.",
+    a: "This prototype uses sample data modelled on APMC arrival and price patterns for Maharashtra, Karnataka and Andhra Pradesh belts.",
   },
   {
     q: "What does the reliability score mean?",
@@ -64,7 +64,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Does AgriSense charge a commission on my sale?",
-    a: "No commission on the produce value. The demo shows freight and settlement costs only.",
+    a: "No commission on the produce value. This estimate includes freight and settlement costs only.",
   },
 ];
 
@@ -172,10 +172,10 @@ export const BOT_GREETING: Record<SupportedBotLang, string> = {
 };
 
 export const BOT_FALLBACK: Record<SupportedBotLang, string> = {
-  en: "I understand your query. In the demo dataset, you can ask about live onion, tomato or soybean prices, best time to sell, cold storage costs, AI grading norms, or digital escrow payments.",
+  en: "I understand your query. You can ask about live onion, tomato or soybean prices, best time to sell, cold storage costs, AI grading norms, or digital escrow payments.",
   hi: "मैं आपकी बात समझ गया। आप प्याज, टमाटर या सोयाबीन के लाइव मंडी भाव, बेचने का सही समय, कोल्ड स्टोरेज का खर्च, AI ग्रेडिंग या एस्क्रो पेमेंट के बारे में पूछ सकते हैं।",
-  mr: "मला तुमचा प्रश्न समजला. डेमो डेटामध्ये तुम्ही कांदा, टोमॅटो किंवा सोयाबीनचे थेट बाजारभाव, विक्रीची योग्य वेळ, शीतगृह खर्च, AI ग्रेडिंग किंवा पेमेंटबाबत विचारू शकता.",
+  mr: "मला तुमचा प्रश्न समजला. तुम्ही कांदा, टोमॅटो किंवा सोयाबीनचे थेट बाजारभाव, विक्रीची योग्य वेळ, शीतगृह खर्च, AI ग्रेडिंग किंवा पेमेंटबाबत विचारू शकता.",
   pa: "ਮੈਨੂੰ ਤੁਹਾਡਾ ਸਵਾਲ ਸਮਝ ਆ ਗਿਆ ਹੈ। ਤੁਸੀਂ ਪਿਆਜ਼, ਟਮਾਟਰ, ਸੋਇਆਬੀਨ ਦੇ ਰੇਟ, ਵੇਚਣ ਦਾ ਸਹੀ ਸਮਾਂ, ਕੋਲਡ ਸਟੋਰੇਜ ਜਾਂ ਭੁਗਤਾਨ ਬਾਰੇ ਪੁੱਛ ਸਕਦੇ ਹੋ।",
   hinglish:
-    "Mujhe aapka question samajh aa gaya. Demo database me aap pyaj, tamatar, soyabean ke live rates, bechne ka best time, cold storage cost, AI grading ya escrow payment ke bare me pooch sakte hain.",
+    "Mujhe aapka question samajh aa gaya. Aap pyaj, tamatar, soyabean ke live rates, bechne ka best time, cold storage cost, AI grading ya escrow payment ke bare me pooch sakte hain.",
 };

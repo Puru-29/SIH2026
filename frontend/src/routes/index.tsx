@@ -392,7 +392,7 @@ function Landing() {
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-primary-foreground/75">
             {tr(
-              "Start with a demo farm in Dindori, Nashik and see how the engine prices every buyer and mandi around you.",
+              "Start with an example farm in Dindori, Nashik and see how the engine prices every buyer and mandi around you.",
             )}
           </p>
           <Link

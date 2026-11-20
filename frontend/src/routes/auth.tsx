@@ -1,19 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sprout, Store, User, Wheat } from "lucide-react";
+import { ArrowRight, Loader2, ShieldCheck, Sprout, Store, Wheat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationSelector } from "@/components/agri/location-selector";
 import { LanguageSelector } from "@/components/agri/language-selector";
 import { useI18n } from "@/lib/i18n";
 import { homeFor, setSession, type UserRole } from "@/services/session";
-import { DEMO_ACCOUNTS, getAuthErrorMessage, loginFarmer } from "@/services/api-client";
+import { getAuthErrorMessage, loginFarmer } from "@/services/api-client";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — AgriSense" },
-      { name: "description", content: "Sign in to AgriSense as a farmer, buyer or FPO." },
+      {
+        name: "description",
+        content: "Sign in to AgriSense as a farmer, buyer, FPO or administrator.",
+      },
       { property: "og:title", content: "Sign in — AgriSense" },
       { property: "og:description", content: "Access your AgriSense market intelligence portal." },
     ],
@@ -25,6 +28,7 @@ const ROLES = [
   { id: "farmer", label: "Farmer", icon: Sprout, sub: "Sell your crop lots" },
   { id: "buyer", label: "Buyer", icon: Store, sub: "Source verified produce" },
   { id: "fpo", label: "FPO", icon: Wheat, sub: "Pool crops and sell in bulk" },
+  { id: "admin", label: "Admin", icon: ShieldCheck, sub: "Manage the network" },
 ] as const;
 
 type PublicRole = (typeof ROLES)[number]["id"];
@@ -74,10 +78,10 @@ function AuthPage() {
         <div className="rounded-[2rem] border border-border bg-card p-8">
           <h1 className="font-serif text-3xl">{t("Welcome back")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {t("Choose your role and sign in with the phone number registered with your mandi.")}
+            {t("Choose your role and sign in with your registered phone number.")}
           </p>
 
-          <div className="mt-6 grid grid-cols-3 gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {ROLES.map((r) => (
               <button
                 key={r.id}
@@ -166,50 +170,10 @@ function AuthPage() {
             </button>
           </form>
 
-          <div className="relative my-6 text-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <span className="relative bg-card px-4 text-xs text-muted-foreground">
-              {t("Try a demo account")}
-            </span>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3">
-            {(
-              [
-                ["farmer", User, "Demo farmer"],
-                ["buyer", Store, "Demo buyer"],
-                ["fpo", Wheat, "Demo FPO"],
-              ] as const
-            ).map(([r, Icon, label]) => (
-              <button
-                key={r}
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void signIn(DEMO_ACCOUNTS[r].phone, DEMO_ACCOUNTS[r].pin, r, r)}
-                title={DEMO_ACCOUNTS[r].label}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-sm transition-colors hover:bg-secondary disabled:opacity-60"
-              >
-                {busy === r ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Icon className="h-4 w-4" />
-                )}
-                {t(label)}
-              </button>
-            ))}
-          </div>
-
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {t("Don't have an account?")}{" "}
             <Link to="/register" className="font-medium text-primary hover:underline">
               {t("Create an account")}
-            </Link>
-          </p>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            <Link to="/admin/login" className="hover:text-foreground hover:underline">
-              {t("Administrator sign in")}
             </Link>
           </p>
         </div>

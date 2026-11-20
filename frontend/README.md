@@ -1,6 +1,6 @@
 # AgriSense frontend
 
-React 19 app for the farmer, buyer, FPO and admin portals, built with TanStack Start / Router / Query, Vite, TypeScript and Tailwind CSS 4. It talks to the Rust API in [`../backend/`](../backend/). See the [root README](../README.md) for the product overview and demo logins.
+React 19 app for the farmer, buyer, FPO and admin portals, built with TanStack Start / Router / Query, Vite, TypeScript and Tailwind CSS 4. It talks to the Rust API in [`../backend/`](../backend/). See the [root README](../README.md) for the product overview and local sample-account setup.
 
 ## Run
 

@@ -1,6 +1,6 @@
 # AgriSense backend
 
-Rust API for the AgriSense farmer, buyer, FPO and admin portals. The React frontend is in [`frontend/`](../frontend/); see the [root README](../README.md) for the product overview, demo logins and how to run both.
+Rust API for the AgriSense farmer, buyer, FPO and admin portals. The React frontend is in [`frontend/`](../frontend/); see the [root README](../README.md) for the product overview, local sample accounts and how to run both.
 
 ## Architecture
 
@@ -15,8 +15,8 @@ src/
 │   └── fpo_pools.rs   #   sales, payouts, logistics, grievances; pools, joins, announcements
 ├── admin.rs           # admin console, disputes, audit log, notify helpers
 ├── db.rs, models.rs   # shared queries and request/response types
-├── seed.rs            # master data, admin from env, demo accounts
-├── seed_demo.rs       # idempotent demo data for every portal
+├── seed.rs            # master data, admin from env, sample accounts
+├── seed_demo.rs       # idempotent sample data for every portal
 ├── migrate_fix.rs     # tolerate CRLF/LF changes in migration files
 └── services/
     ├── mandi.rs       # Mandi API client (prices cached 15 min, lists 6 h, history)
@@ -39,7 +39,7 @@ Copy `.env.example` to `.env`. Every variable the backend reads:
 | `PORT` | `8080` | API port (the frontend dev proxy expects `3001`) |
 | `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin |
 | `ADMIN_PHONE`, `ADMIN_PIN` | none | Creates or updates the admin account; no admin exists without them |
-| `DEMO_PIN` | `1234` | PIN for seeded demo accounts that have none |
+| `DEMO_PIN` | `1234` | PIN for seeded sample accounts that have none |
 | `MANDI_API_BASE_URL` | `https://mandi-api.onrender.com/v1` | Mandi price API (no key) |
 | `MANDI_API_STATE` | `Maharashtra` | Default state for price requests without one |
 | `PLATFORM_FEE_PERCENT` | `0` | Fee on direct deals, shown in net realisation |
@@ -80,7 +80,7 @@ Every portal (farmer, buyer, FPO, admin) reads them from `GET /api/notifications
 
 ## Rules worth knowing
 
-- **Buyer verification:** a new buyer can browse and post requirements, but making, countering or accepting an offer (farmer or FPO) returns `403` until an admin approves the buyer. Seeded demo buyers are verified.
+- **Buyer verification:** a new buyer can browse and post requirements, but making, countering or accepting an offer (farmer or FPO) returns `403` until an admin approves the buyer. Seeded sample buyers are verified.
 - **Farmer location:** sign-up requires district and state; it is stored as `"District, State"` (for example `"Ludhiana, Punjab"`). `GET /api/me` returns `needs_district: true` for older farmers saved with only a state; the dashboard asks them once and saves it with `PATCH /api/me { district, state }`.
 - **Crops are master data:** only admins add crops (`POST /api/crops` or the Master data page). Farmers, buyers and FPOs pick from the list; a name not in the list is refused, and `POST /api/crop-requests` asks the admin to add it.
 
@@ -209,10 +209,10 @@ Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POS
 
 Lists in the admin API are paginated: `{ items, total, page, limit, pages }`.
 
-## Database and demo data
+## Database and sample data
 
 - Migrations in `migrations/` run on start. **Never edit an applied migration**; see [docs/database/migrations.md](../docs/database/migrations.md).
-- `seed.rs` loads master data, the admin (from env) and demo accounts. `seed_demo.rs` adds demo data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
+- `seed.rs` loads master data, the admin (from env) and sample accounts. `seed_demo.rs` adds sample data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
 - Delete the database file to start over.
 
 ## Tests

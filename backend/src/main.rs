@@ -74,10 +74,10 @@ async fn main() {
         tracing::error!("Failed to create admin account: {}", e);
     }
     if let Err(e) = seed::ensure_demo_accounts(&pool).await {
-        tracing::error!("Failed to prepare demo accounts: {}", e);
+        tracing::error!("Failed to prepare sample accounts: {}", e);
     }
     if let Err(e) = seed_demo::ensure_demo_data(&pool).await {
-        tracing::error!("Failed to add demo data: {}", e);
+        tracing::error!("Failed to add sample data: {}", e);
     }
 
     let frontend_url =

@@ -173,16 +173,6 @@ export async function logout(): Promise<void> {
   clearUser();
 }
 
-/**
- * Seeded demo accounts (see README). The demo buttons sign in with these
- * through the normal login endpoint, so they get a real session.
- */
-export const DEMO_ACCOUNTS = {
-  farmer: { phone: "9876543210", pin: "1234", label: "Ramesh Kumar" },
-  buyer: { phone: "1234567890", pin: "1234", label: "FreshFarm Retail" },
-  fpo: { phone: "9988776655", pin: "1234", label: "Punjab Kisan FPO" },
-} as const;
-
 export interface BackendCrop {
   id: number;
   name: string;

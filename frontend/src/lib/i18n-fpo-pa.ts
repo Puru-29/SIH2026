@@ -4,10 +4,6 @@
  */
 export const fpoPa: Record<string, string> = {
   // sign-in, registration and verification
-  "Try a demo account": "ਡੈਮੋ ਖਾਤਾ ਵਰਤ ਕੇ ਦੇਖੋ",
-  "Demo farmer": "ਡੈਮੋ ਕਿਸਾਨ",
-  "Demo buyer": "ਡੈਮੋ ਖਰੀਦਦਾਰ",
-  "Demo FPO": "ਡੈਮੋ FPO",
   "Administrator sign in": "ਐਡਮਿਨ ਲੌਗਇਨ",
   "For AgriSense platform administrators only.": "ਸਿਰਫ਼ AgriSense ਪਲੇਟਫਾਰਮ ਐਡਮਿਨ ਲਈ।",
   "Farmer, buyer or FPO sign in": "ਕਿਸਾਨ, ਖਰੀਦਦਾਰ ਜਾਂ FPO ਲੌਗਇਨ",
@@ -203,7 +199,6 @@ export const fpoPa: Record<string, string> = {
   "Cancel delivery": "ਡਿਲੀਵਰੀ ਰੱਦ ਕਰੋ",
   "Start review": "ਜਾਂਚ ਸ਼ੁਰੂ ਕਰੋ",
   "Mark resolved": "ਹੱਲ ਹੋਇਆ ਦਰਜ ਕਰੋ",
-  "Continue as demo FPO": "ਡੈਮੋ FPO ਵਜੋਂ ਜਾਰੀ ਰੱਖੋ",
 
   // dashboard
   "FPO dashboard": "FPO ਡੈਸ਼ਬੋਰਡ",

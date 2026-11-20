@@ -20,9 +20,9 @@ Small farmers usually sell at the nearest mandi on the day of harvest, without k
 - lets **FPOs pool** members' crops into bulk lots, sell them, and split the money fairly by quantity and grade;
 - gives the **admin** verification, dispute handling, market monitoring and an audit log.
 
-## Portals and demo logins
+## Portals and local sample accounts
 
-The demo data loads automatically the first time the backend starts. All demo PINs are `1234` (change it with `DEMO_PIN`).
+Sample accounts and records are added automatically when the backend starts. All sample account PINs are `1234` (change them with `DEMO_PIN`).
 
 | Portal | Sign in at | Phone | What to try |
 |---|---|---|---|
@@ -70,7 +70,7 @@ cargo run
 
 On macOS or Linux: `cd backend && cp .env.example .env && PORT=3001 cargo run`.
 
-The first start creates `backend/agri_prototype.db`, applies the migrations and loads the demo data. Check it with `curl http://localhost:3001/health`.
+The first start creates `backend/agri_prototype.db`, applies the migrations and loads sample records. Check it with `curl http://localhost:3001/health`.
 
 **2. Frontend** (second terminal):
 
@@ -93,7 +93,7 @@ npm run lint
 npm run build
 ```
 
-## Demo flow (about 10 minutes)
+## Example workflow (about 10 minutes)
 
 1. **Farmer**: register a new farmer, set the farm location on Profile, then add a lot on **My Crops**. Buyers with a matching requirement are notified.
 2. **Buyer**: register a buyer, post a requirement for the same crop. The matching-lot count updates; open it and offer your price. Or find the farmer on **Suppliers** or **Browse produce**.
@@ -102,7 +102,7 @@ npm run build
 5. Message each other from the order or lot (**Messages**, refreshed every 10 seconds).
 6. **Farmer** marks the order picked up and in transit; **buyer** marks it delivered (**Orders** or **Logistics**).
 7. **Buyer** records the payment on **Payments**; **farmer** confirms it was received. The order becomes completed, and the invoice is on `/invoice/<order id>`.
-8. **FPO**: sign in as the demo FPO to see pools, intake, sales and the payout split. **Admin**: approve the waiting FPO and buyer, review the open dispute, and check the audit log.
+8. **FPO**: sign in as the sample FPO to see pools, intake, sales and the payout split. **Admin**: approve the waiting FPO and buyer, review the open dispute, and check the audit log.
 
 ## Repository layout
 

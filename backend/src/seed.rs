@@ -2,7 +2,7 @@ use sqlx::SqlitePool;
 
 use crate::auth::{hash_pin, verify_pin};
 
-/// PIN for the seeded demo accounts (documented in the README). Override with DEMO_PIN.
+/// PIN for seeded sample accounts (documented in the README). Override with DEMO_PIN.
 const DEFAULT_DEMO_PIN: &str = "1234";
 
 /// Creates or updates the platform admin from ADMIN_PHONE / ADMIN_PIN.
@@ -53,8 +53,7 @@ pub async fn ensure_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// Gives the seeded demo farmer, buyer and FPO a PIN so the "demo" buttons are
-/// real sign-ins, and makes sure the demo FPO has a verified organisation.
+/// Gives the seeded farmer, buyer and FPO accounts a PIN and verifies the sample FPO.
 /// Only touches seeded accounts that have no PIN yet, so it is safe on every start.
 pub async fn ensure_demo_accounts(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let pin = std::env::var("DEMO_PIN")
@@ -87,7 +86,7 @@ pub async fn ensure_demo_accounts(pool: &SqlitePool) -> Result<(), sqlx::Error> 
     Ok(())
 }
 
-// Loads demo data on first run. IDs 1–4 are fixed so README curl examples keep working.
+// Loads sample data on first run. IDs 1–4 are fixed so README curl examples keep working.
 pub async fn seed_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM farmers")
         .fetch_one(pool)
@@ -98,7 +97,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         return Ok(());
     }
 
-    tracing::info!("Seeding database with demo data...");
+    tracing::info!("Seeding database with sample data...");
     let mut tx = pool.begin().await?;
 
     // crops
@@ -207,7 +206,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .execute(&mut *tx)
     .await?;
 
-    // open lot for the demo flow
+    // open sample lot
     sqlx::query(
         "INSERT INTO lots (id, farmer_id, crop_id, quantity_quintals, expected_quality, status)
          VALUES (1, 1, 1, 15.0, 'Grade A', 'open')",
@@ -216,6 +215,6 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .await?;
 
     tx.commit().await?;
-    tracing::info!("Seeding completed successfully. Demo data is ready.");
+    tracing::info!("Seeding completed successfully. Sample data is ready.");
     Ok(())
 }

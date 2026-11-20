@@ -1,11 +1,11 @@
-//! Demo data so every portal has something real to show on first run.
+//! Sample data so every portal has something real to show on first run.
 //!
 //! Runs after migrations on every start. Each block checks whether its data is
 //! already there and only fills in what is missing, so it is safe to run again
 //! and never touches data created by real users.
 //!
-//! Demo logins (PIN = DEMO_PIN, default 1234):
-//! - Farmer: 9876543210 (Ramesh Kumar), also a member of the demo FPO
+//! Sample account logins (PIN = DEMO_PIN, default 1234):
+//! - Farmer: 9876543210 (Ramesh Kumar), also a member of the sample FPO
 //! - Buyer: 1234567890 (FreshFarm Retail)
 //! - FPO: 9988776655 (Punjab Kisan FPO), plus member farmers 9876500001–06
 //! - Pending FPO: 9988776600 (Malwa Growers FPO), waiting for admin approval
@@ -161,7 +161,7 @@ async fn demo_fpo(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let wheat = crop_id(&mut tx, "Wheat", 180).await?;
     let paddy = crop_id(&mut tx, "Paddy", 240).await?;
 
-    // Members (all can sign in as farmers), plus the demo farmer Ramesh.
+    // Members (all can sign in as farmers), plus the sample farmer Ramesh.
     let people = [
         (
             "Gurpreet Singh",
@@ -463,7 +463,7 @@ async fn demo_fpo(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .await?;
     sqlx::query(
         "INSERT INTO fpo_audit_log (fpo_id, actor_id, action, entity, entity_id, detail) VALUES
-         (?, ?, 'pool listed', 'pool', ?, 'Demo data: paddy pool sold and settled')",
+         (?, ?, 'pool listed', 'pool', ?, 'Sample data: paddy pool sold and settled')",
     )
     .bind(org)
     .bind(DEMO_FPO_MANAGER)
@@ -473,7 +473,7 @@ async fn demo_fpo(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     tx.commit().await
 }
 
-/// A graded mustard lot with stock, so buyers can find the demo FPO on the
+/// A graded mustard lot with stock, so buyers can find the sample FPO on the
 /// Suppliers page and in the FPO marketplace.
 async fn fpo_stock(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let Some(org) =
@@ -792,19 +792,19 @@ async fn admin_activity(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             "fpo.approve",
             "fpo",
             demo_org,
-            json!({ "name": "Punjab Kisan FPO", "note": "demo data" }),
+            json!({ "name": "Punjab Kisan FPO", "note": "sample data" }),
         ),
         (
             "buyer.approve",
             "user",
             Some(2),
-            json!({ "name": "FreshFarm Retail", "note": "demo data" }),
+            json!({ "name": "FreshFarm Retail", "note": "sample data" }),
         ),
         (
             "buyer.trust_score",
             "user",
             Some(4),
-            json!({ "from": 5.0, "to": 3.5, "reason": "Two delayed payments reported (demo data)" }),
+            json!({ "from": 5.0, "to": 3.5, "reason": "Two delayed payments reported (sample data)" }),
         ),
         (
             "announcement.post",

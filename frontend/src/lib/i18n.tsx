@@ -403,8 +403,8 @@ const hi: TranslationDict = {
 
   // Auth Page
   "Welcome back": "फिर से स्वागत है",
-  "Choose your role and sign in with the phone number registered with your mandi.":
-    "अपनी भूमिका चुनें और मंडी में दर्ज मोबाइल नंबर से साइन इन करें।",
+  "Choose your role and sign in with your registered phone number.":
+    "अपनी भूमिका चुनें और पंजीकृत मोबाइल नंबर से साइन इन करें।",
   Farmer: "किसान",
   Buyer: "खरीदार",
   Admin: "प्रशासक",
@@ -414,7 +414,6 @@ const hi: TranslationDict = {
   "Manage the network": "नेटवर्क संभालें",
   "Phone number": "मोबाइल नंबर",
   "4-digit PIN": "4 अंकों का पिन",
-  "Continue as demo farmer (Ramesh)": "डेमो किसान (रमेश) के रूप में जारी रखें",
 
   // AgriBot
   "Ask AgriBot": "एग्रीबॉट से पूछें",
@@ -777,8 +776,8 @@ const mr: TranslationDict = {
   "Frequently asked questions": "वारंवार विचारले जाणारे प्रश्न",
 
   "Welcome back": "पुन्हा स्वागत आहे",
-  "Choose your role and sign in with the phone number registered with your mandi.":
-    "तुमची भूमिका निवडा आणि बाजारात नोंदवलेल्या मोबाइल क्रमांकाने साइन इन करा.",
+  "Choose your role and sign in with your registered phone number.":
+    "तुमची भूमिका निवडा आणि नोंदवलेल्या मोबाइल क्रमांकाने साइन इन करा.",
   Farmer: "शेतकरी",
   Buyer: "खरेदीदार",
   Admin: "प्रशासक",
@@ -788,7 +787,6 @@ const mr: TranslationDict = {
   "Manage the network": "नेटवर्क सांभाळा",
   "Phone number": "मोबाइल क्रमांक",
   "4-digit PIN": "4 अंकी पिन",
-  "Continue as demo farmer (Ramesh)": "डेमो शेतकरी (रमेश) म्हणून पुढे जा",
 
   "Ask AgriBot": "अ‍ॅग्रीबॉटला विचारा",
   "AI Farm & Market Assistant": "एआय शेती व बाजार सहाय्यक",
@@ -1149,8 +1147,8 @@ const pa: TranslationDict = {
   "Frequently asked questions": "ਅਕਸਰ ਪੁੱਛੇ ਜਾਂਦੇ ਸਵਾਲ",
 
   "Welcome back": "ਜੀ ਆਇਆਂ ਨੂੰ",
-  "Choose your role and sign in with the phone number registered with your mandi.":
-    "ਆਪਣੀ ਭੂਮਿਕਾ ਚੁਣੋ ਅਤੇ ਮੰਡੀ ਵਿੱਚ ਦਰਜ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ।",
+  "Choose your role and sign in with your registered phone number.":
+    "ਆਪਣੀ ਭੂਮਿਕਾ ਚੁਣੋ ਅਤੇ ਦਰਜ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ।",
   Farmer: "ਕਿਸਾਨ",
   Buyer: "ਖਰੀਦਦਾਰ",
   Admin: "ਪ੍ਰਸ਼ਾਸਕ",
@@ -1160,7 +1158,6 @@ const pa: TranslationDict = {
   "Manage the network": "ਨੈੱਟਵਰਕ ਸੰਭਾਲੋ",
   "Phone number": "ਮੋਬਾਈਲ ਨੰਬਰ",
   "4-digit PIN": "4 ਅੰਕਾਂ ਦਾ ਪਿੰਨ",
-  "Continue as demo farmer (Ramesh)": "ਡੈਮੋ ਕਿਸਾਨ (ਰਮੇਸ਼) ਵਜੋਂ ਜਾਰੀ ਰੱਖੋ",
 
   "Ask AgriBot": "ਐਗਰੀਬੋਟ ਨੂੰ ਪੁੱਛੋ",
   "AI Farm & Market Assistant": "ਏਆਈ ਖੇਤੀਬਾੜੀ ਅਤੇ ਮੰਡੀ ਸਹਾਇਕ",
@@ -1521,8 +1518,8 @@ const gu: TranslationDict = {
   "Frequently asked questions": "વારંવાર પૂછાતા પ્રશ્નો",
 
   "Welcome back": "ફરી સ્વાગત છે",
-  "Choose your role and sign in with the phone number registered with your mandi.":
-    "તમારી ભૂમિકા પસંદ કરો અને બજારમાં નોંધાયેલા મોબાઇલ નંબરથી સાઇન ઇન કરો.",
+  "Choose your role and sign in with your registered phone number.":
+    "તમારી ભૂમિકા પસંદ કરો અને નોંધાયેલા મોબાઇલ નંબરથી સાઇન ઇન કરો.",
   Farmer: "ખેડૂત",
   Buyer: "ખરીદદાર",
   Admin: "એડમિન",
@@ -1532,7 +1529,6 @@ const gu: TranslationDict = {
   "Manage the network": "નેટવર્ક સંભાળો",
   "Phone number": "મોબાઇલ નંબર",
   "4-digit PIN": "4 અંકનો પિન",
-  "Continue as demo farmer (Ramesh)": "ડેમો ખેડૂત (રમેશ) તરીકે આગળ વધો",
 
   "Ask AgriBot": "એગ્રીબોટને પૂછો",
   "AI Farm & Market Assistant": "એઆઈ કૃષિ અને બજાર સહાયક",
