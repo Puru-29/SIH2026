@@ -70,6 +70,20 @@ Copy `.env.example` to `.env`. Every variable the backend reads:
 
 Created by the backend in `user_notifications` with a `type`: `offer`, `counter`, `accepted`, `rejected`, `matching_lot` (a new lot matches a buyer's requirement), `order`, `payment`, `message` (at most one unread per conversation), `dispute`, `admin`, `general`.
 
+Every portal (farmer, buyer, FPO, admin) reads them from `GET /api/notifications`; the header bell shows the unread count. Each one has a `link` to the page to open. FPO actions notify:
+
+- **Farmer:** join request approved or declined; pledge received (weighed quintals and grade) or rejected; pool listed, cancelled or sold; payout calculated; payout paid (amount and reference); FPO announcement.
+- **FPO manager:** new join request; farmer pledge; buyer offer, counter, accept or reject on an FPO lot; buyer dispute or farmer complaint; admin approval or send-back.
+- **Buyer:** FPO offer, accept, reject or counter; new FPO lot matching an open requirement.
+
+`GET /api/fpo/notifications` is not a notification feed: it is the FPO's live "needs attention" checklist (pending intakes, unpaid sales, ungraded lots), shown below the bell list.
+
+## Rules worth knowing
+
+- **Buyer verification:** a new buyer can browse and post requirements, but making, countering or accepting an offer (farmer or FPO) returns `403` until an admin approves the buyer. Seeded demo buyers are verified.
+- **Farmer location:** sign-up requires district and state; it is stored as `"District, State"` (for example `"Ludhiana, Punjab"`). `GET /api/me` returns `needs_district: true` for older farmers saved with only a state; the dashboard asks them once and saves it with `PATCH /api/me { district, state }`.
+- **Crops are master data:** only admins add crops (`POST /api/crops` or the Master data page). Farmers, buyers and FPOs pick from the list; a name not in the list is refused, and `POST /api/crop-requests` asks the admin to add it.
+
 ## API reference
 
 All paths are under the backend origin. "Auth" means a Bearer token is required; the role column lists who may call it.
@@ -79,17 +93,18 @@ All paths are under the backend origin. "Auth" means a Bearer token is required;
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | GET | `/health` | public | Health and version |
-| POST | `/api/auth/register` | public | Register a farmer, buyer or FPO (FPOs start `pending`) |
+| POST | `/api/auth/register` | public | Register a farmer, buyer or FPO. Farmers and FPOs send `district` and `state` (required). FPOs start `pending`, buyers unverified |
 | POST | `/api/auth/login` | public | Sign in; returns a token |
 | POST | `/api/auth/logout` | any | End this session |
 | GET | `/api/auth/me` | any | Current user, role and status |
-| GET, PATCH | `/api/me` | any | Profile: name, location, urgency, preferred language, stats |
+| GET, PATCH | `/api/me` | any | Profile: name, location (farmers: `district` + `state`), urgency, preferred language, `verified` (buyers), `needs_district` (farmers), stats |
 
 ### Crops, prices and advice
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| GET, POST | `/api/crops` | GET public, POST auth | List crops; find-or-create a crop by name |
+| GET, POST | `/api/crops` | GET public, POST admin | List crops; add a crop (admin only, audited) |
+| POST | `/api/crop-requests` | farmer, buyer, fpo | Ask the admin to add a missing crop `{ crop_name, note? }` |
 | GET | `/api/mandi/prices?state=&commodity=` | public | Live mandi prices (also saved to price history) |
 | GET | `/api/mandi/states`, `/api/mandi/commodities?state=` | public | Mandi API lists |
 | GET | `/api/forecast?crop=&state=&horizon=` | auth | Trend-based price outlook and drivers |
@@ -155,7 +170,7 @@ All paths are under the backend origin. "Auth" means a Bearer token is required;
 | Method | Path | Purpose |
 |---|---|---|
 | GET, PUT | `/api/fpo/org` | Organisation profile |
-| GET | `/api/fpo/dashboard`, `/api/fpo/notifications` | Dashboard and alerts |
+| GET | `/api/fpo/dashboard`, `/api/fpo/notifications` | Dashboard and the "needs attention" checklist (notifications themselves: `/api/notifications`) |
 | GET, POST / GET, PUT | `/api/fpo/members`, `/api/fpo/members/:id` | Members (optional farmer login) |
 | GET, POST / POST | `/api/fpo/contributions`, `/api/fpo/contributions/:id/:action` | Direct contributions, approve or reject |
 | GET, POST / GET, POST | `/api/fpo/pools`, `/api/fpo/pools/:id` (+ `/contributions`, `/contributions/:cid/intake`, `/action/:action`) | Crop pools: pledge, intake by grade, open, lock, list, cancel |
@@ -171,7 +186,7 @@ All paths are under the backend origin. "Auth" means a Bearer token is required;
 | GET, POST | `/api/fpo/announcements` | Announcements to members |
 
 Farmer side of FPOs: `GET /api/fpos` (find FPOs), `POST /api/fpos/:id/join-requests`, `GET /api/fpo/my`, `GET /api/fpo/my/pools`, `POST /api/fpo/my/pools/:id/pledge`, `POST /api/fpo/my/grievances`.
-Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POST /api/fpo-market/offers/:id/respond`.
+Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POST /api/fpo-market/offers/:id/respond` (offering, countering and accepting need a verified buyer), `POST /api/fpo-market/sales/:id/disputes` (raise a dispute on an FPO sale; notifies the FPO and holds farmer payouts until resolved).
 
 ### Admin (`admin` role; every change is written to the audit log)
 
@@ -188,6 +203,8 @@ Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POS
 | GET | `/api/admin/intel/supply-demand`, `/api/admin/intel/prices` | Market intelligence |
 | GET, POST / PUT, DELETE | `/api/admin/master/:table`, `/api/admin/master/:table/:id` | Crops, markets, transport and storage rates |
 | GET, POST | `/api/admin/announcements` | Advisories |
+| GET / POST | `/api/admin/crop-requests`, `/api/admin/crop-requests/:id/:action` | Crop requests: `add` (optionally with a corrected `name`) or `dismiss`; the requester is notified |
+| GET | `/api/admin/fpos`, `/api/admin/buyers` | FPO and buyer summaries (read-only) |
 | GET | `/api/admin/audit` | Audit log |
 
 Lists in the admin API are paginated: `{ items, total, page, limit, pages }`.
@@ -205,4 +222,6 @@ cargo test                  # rules, ranking, forecast, payouts, and database fl
 cargo clippy --all-targets  # expected: no warnings
 ```
 
-The database tests in `market.rs` cover counter-offers ending in an order, rejecting and withdrawing, payment status from pending to paid, supplier listing and filters, messages, and notifications.
+The database tests in `market.rs` cover counter-offers ending in an order, rejecting and withdrawing, payment status from pending to paid, supplier listing and filters, messages, notifications, unverified buyers being blocked from offering and accepting, and farmer sign-up storing district and state. `fpo_pools.rs` tests that receiving a pledge notifies the farmer.
+
+Removed: `POST /api/admin/fpos/:id/verify`, `POST /api/admin/buyers/:id/verify` (use `/decision`), and `GET /api/notifications/mine` + `POST /api/notifications/mine/read` (use `/api/notifications`).

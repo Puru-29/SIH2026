@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { adminApi, type MasterRow, type MasterTable } from "@/services/admin-api";
+import { adminApi, type CropRequest, type MasterRow, type MasterTable } from "@/services/admin-api";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import {
   Btn,
@@ -167,6 +167,7 @@ function MasterDataPage() {
           </Table>
         )}
       </Card>
+      {table === "crops" && <CropRequests />}
       {editing && (
         <EditModal
           table={table}
@@ -251,5 +252,73 @@ function EditModal({
         <FormActions onCancel={onClose} submitLabel="Save" busy={save.isPending} />
       </form>
     </Modal>
+  );
+}
+
+/** Crops that farmers, buyers and FPOs asked for. Adding one creates the crop (audited). */
+function CropRequests() {
+  const { t } = useI18n();
+  const list = useFpoQuery(["admin", "crop-requests"], adminApi.cropRequests);
+  const [names, setNames] = useState<Record<number, string>>({});
+  const decide = useFpoMutation(
+    ({ r, action }: { r: CropRequest; action: "add" | "dismiss" }) =>
+      adminApi.decideCropRequest(r.id, action, names[r.id]?.trim() || undefined),
+    { success: "Saved" },
+  );
+  const open = (list.data ?? []).filter((r) => r.status === "open");
+  return (
+    <Card
+      title="Crop requests"
+      subtitle="Only admins add crops. Fix the spelling if needed, then add it — or dismiss duplicates and typos."
+    >
+      <ErrorNote error={list.error} />
+      {list.isLoading ? (
+        <Loading />
+      ) : !open.length ? (
+        <Empty title="No open crop requests" />
+      ) : (
+        <Table head={["Requested crop", "From", "Add as", ""]}>
+          {open.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <strong>{r.crop_name}</strong>
+                {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
+              </td>
+              <td>
+                {r.requested_by}{" "}
+                <span className="text-xs text-muted-foreground">({t(r.role)})</span>
+              </td>
+              <td>
+                <input
+                  aria-label={t("Crop name to add")}
+                  value={names[r.id] ?? r.crop_name}
+                  onChange={(e) => setNames({ ...names, [r.id]: e.target.value })}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                />
+              </td>
+              <td>
+                <div className="flex justify-end gap-1.5">
+                  <Btn
+                    size="sm"
+                    disabled={decide.isPending}
+                    onClick={() => decide.mutate({ r, action: "add" })}
+                  >
+                    {t("Add crop")}
+                  </Btn>
+                  <Btn
+                    size="sm"
+                    variant="ghost"
+                    disabled={decide.isPending}
+                    onClick={() => decide.mutate({ r, action: "dismiss" })}
+                  >
+                    {t("Dismiss")}
+                  </Btn>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </Card>
   );
 }

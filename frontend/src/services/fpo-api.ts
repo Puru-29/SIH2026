@@ -856,12 +856,9 @@ export const fpoApi = {
     send<{ id: number; status: string }>("POST", `/api/fpo-market/offers/${id}/respond`, b),
 
   // admin
+  // Approving FPOs and buyers goes through adminApi.decideFpo / decideBuyer (audited).
   adminFpos: () => request<AdminFpo[]>("/api/admin/fpos"),
-  adminVerifyFpo: (id: number, verified: boolean) =>
-    send<{ id: number }>("POST", `/api/admin/fpos/${id}/verify`, { verified }),
   adminBuyers: () => request<AdminBuyer[]>("/api/admin/buyers"),
-  adminVerifyBuyer: (id: number, verified: boolean) =>
-    send<{ id: number }>("POST", `/api/admin/buyers/${id}/verify`, { verified }),
 };
 
 export const documentPath = (id: number) => `/api/fpo/documents/${id}`;

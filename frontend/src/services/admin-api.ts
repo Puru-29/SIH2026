@@ -260,13 +260,14 @@ export type AuditRow = {
   created_at: string;
 };
 
-export type UserNotification = {
+export type CropRequest = {
   id: number;
-  title: string;
-  body: string;
-  link: string | null;
+  crop_name: string;
+  note: string;
+  status: "open" | "added" | "dismissed";
+  requested_by: string;
+  role: string;
   created_at: string;
-  read: boolean;
 };
 
 export const adminApi = {
@@ -320,13 +321,19 @@ export const adminApi = {
   postAnnouncement: (b: { audience: string; district: string; title: string; body: string }) =>
     send<{ id: number }>("POST", "/api/admin/announcements", b),
   audit: (p: ListParams) => request<Paged<AuditRow>>(`/api/admin/audit${qs(p)}`),
+  cropRequests: () => request<CropRequest[]>("/api/admin/crop-requests"),
+  decideCropRequest: (id: number, action: "add" | "dismiss", name?: string) =>
+    send<{ id: number; status: string }>("POST", `/api/admin/crop-requests/${id}/${action}`, {
+      name,
+    }),
 };
 
-/** Farmer/buyer side: disputes on orders and personal notifications. */
+/** Farmer/buyer side: disputes on orders. Notifications live in api-client (/api/notifications). */
 export const userApi = {
   raiseDispute: (transaction_id: number, reason: string) =>
     send<{ id: number }>("POST", "/api/disputes", { transaction_id, reason }),
   myDisputes: () => request<Dispute[]>("/api/disputes/mine"),
-  notifications: () => request<UserNotification[]>("/api/notifications/mine"),
-  markRead: () => send<{ ok: boolean }>("POST", "/api/notifications/mine/read"),
+  /** Farmers, buyers and FPOs ask the admin to add a crop missing from the list. */
+  requestCrop: (crop_name: string, note?: string) =>
+    send<{ id: number }>("POST", "/api/crop-requests", { crop_name, note }),
 };

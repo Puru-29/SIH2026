@@ -7,7 +7,8 @@ import { CalendarDays, MapPin, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { cropEmoji } from "@/lib/crop-catalog";
-import { useCropOptions } from "@/hooks/use-my-lots";
+import { useCatalogueCrops } from "@/hooks/use-my-lots";
+import { RequestCrop } from "@/components/agri/request-crop";
 import { useFpoMutation } from "@/hooks/use-fpo";
 import { fpoApi, type Contribution, type Pool } from "@/services/fpo-api";
 import {
@@ -133,7 +134,7 @@ export function CreatePoolModal({
   onCreated: (p: Pool) => void;
 }) {
   const { t } = useI18n();
-  const { options } = useCropOptions();
+  const { options } = useCatalogueCrops();
   const [f, setF] = useState({
     crop: "",
     grade: "" as "" | "A" | "B" | "C",
@@ -182,6 +183,7 @@ export function CreatePoolModal({
             <option key={o} value={o} />
           ))}
         </datalist>
+        <RequestCrop />
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             id="pl-target"

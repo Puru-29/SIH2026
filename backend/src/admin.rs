@@ -57,10 +57,11 @@ pub fn routes() -> Router<SqlitePool> {
         .route("/api/admin/audit", get(audit_list))
         .route("/api/disputes", post(raise_dispute))
         .route("/api/disputes/mine", get(my_disputes))
-        .route("/api/notifications/mine", get(my_notifications))
+        .route("/api/crop-requests", post(request_crop))
+        .route("/api/admin/crop-requests", get(list_crop_requests))
         .route(
-            "/api/notifications/mine/read",
-            post(mark_notifications_read),
+            "/api/admin/crop-requests/:id/:action",
+            post(decide_crop_request),
         )
 }
 
@@ -204,30 +205,68 @@ fn paged<T: Serialize>(items: Vec<T>, total: i64, page: i64, limit: i64) -> Valu
             "pages": ((total + limit - 1) / limit).max(1) })
 }
 
+/// Blocks a buyer account an admin has not verified yet from trading.
+pub async fn require_verified_buyer(pool: &SqlitePool, buyer_id: i64) -> Result<(), AppError> {
+    let verified: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(is_verified), 0) FROM buyers WHERE id = ?")
+            .bind(buyer_id)
+            .fetch_one(pool)
+            .await?;
+    if verified == 1 {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "Your account is being verified — you can make offers once approved.".into(),
+        ))
+    }
+}
+
+/// Builds the stored farmer location "District, State" from sign-up or profile input.
+pub fn farmer_location(district: Option<&str>, state: Option<&str>) -> Result<String, AppError> {
+    let district = district.map(str::trim).unwrap_or("");
+    let state = state.map(str::trim).unwrap_or("");
+    if district.chars().count() < 2 || district.chars().count() > 60 {
+        return Err(bad("Enter your district"));
+    }
+    let state = STATES
+        .iter()
+        .find(|s| s.eq_ignore_ascii_case(state))
+        .ok_or_else(|| bad("Choose your state"))?;
+    Ok(format!("{district}, {state}"))
+}
+
+/// True when a stored farmer location has no district (old sign-ups saved only a state).
+pub fn location_needs_district(location: Option<&str>) -> bool {
+    let l = location.map(str::trim).unwrap_or("");
+    l.is_empty() || STATES.iter().any(|s| s.eq_ignore_ascii_case(l))
+}
+
+/// States offered at sign-up; also used to read a state out of free-text places.
+pub const STATES: [&str; 20] = [
+    "Maharashtra",
+    "Punjab",
+    "Haryana",
+    "Uttar Pradesh",
+    "Madhya Pradesh",
+    "Karnataka",
+    "Gujarat",
+    "Rajasthan",
+    "Delhi",
+    "Tamil Nadu",
+    "Telangana",
+    "Andhra Pradesh",
+    "West Bengal",
+    "Bihar",
+    "Odisha",
+    "Kerala",
+    "Assam",
+    "Chhattisgarh",
+    "Jharkhand",
+    "Himachal Pradesh",
+];
+
 /// Maps free-text places (state names and common mandi cities) to a state.
 pub fn region_of(place: &str) -> Option<&'static str> {
-    const STATES: [&str; 20] = [
-        "Maharashtra",
-        "Punjab",
-        "Haryana",
-        "Uttar Pradesh",
-        "Madhya Pradesh",
-        "Karnataka",
-        "Gujarat",
-        "Rajasthan",
-        "Delhi",
-        "Tamil Nadu",
-        "Telangana",
-        "Andhra Pradesh",
-        "West Bengal",
-        "Bihar",
-        "Odisha",
-        "Kerala",
-        "Assam",
-        "Chhattisgarh",
-        "Jharkhand",
-        "Himachal Pradesh",
-    ];
     const CITIES: [(&str, &str); 34] = [
         ("navi mumbai", "Maharashtra"),
         ("mumbai", "Maharashtra"),
@@ -2118,31 +2157,150 @@ async fn audit_list(
 }
 
 /* -------------------------------------------------------------------------- */
-/*                          per-user notifications                            */
+/*                               crop requests                                */
 /* -------------------------------------------------------------------------- */
 
-async fn my_notifications(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Vec<Value>> {
-    type Row2100 = (i64, String, String, Option<String>, String, Option<String>);
-    let rows: Vec<Row2100> = sqlx::query_as(
-        "SELECT id, title, body, link, created_at, read_at FROM user_notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50",
-    )
-    .bind(user.user_id)
-    .fetch_all(&pool)
-    .await?;
-    Ok(Json(rows.into_iter().map(|r| json!({
-        "id": r.0, "title": r.1, "body": r.2, "link": r.3, "created_at": r.4, "read": r.5.is_some(),
-    })).collect()))
+#[derive(Deserialize)]
+struct CropRequestBody {
+    crop_name: String,
+    note: Option<String>,
 }
 
-async fn mark_notifications_read(
+/// POST /api/crop-requests — a farmer, buyer or FPO asks the admin to add a missing crop.
+async fn request_crop(
     State(pool): State<SqlitePool>,
     user: AuthUser,
+    Json(b): Json<CropRequestBody>,
 ) -> ApiResult<Value> {
-    sqlx::query("UPDATE user_notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL")
-        .bind(user.user_id)
-        .execute(&pool)
-        .await?;
-    Ok(Json(json!({ "ok": true })))
+    if user.role == "admin" {
+        return Err(bad("Admins add crops directly on the Master data page"));
+    }
+    let name = text(&b.crop_name, "Crop name", 2, 80)?;
+    let note = text(b.note.as_deref().unwrap_or(""), "Note", 0, 300)?;
+    let existing: Option<String> =
+        sqlx::query_scalar("SELECT name FROM crops WHERE lower(name) = lower(?)")
+            .bind(&name)
+            .fetch_optional(&pool)
+            .await?;
+    if let Some(n) = existing {
+        return Err(bad(format!("{n} is already in the crop list")));
+    }
+    let id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO crop_requests (requested_by, crop_name, note) VALUES (?, ?, ?) RETURNING id",
+    )
+    .bind(user.user_id)
+    .bind(&name)
+    .bind(&note)
+    .fetch_all(&pool)
+    .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))?;
+    Ok(Json(json!({ "id": id })))
+}
+
+async fn list_crop_requests(
+    State(pool): State<SqlitePool>,
+    user: AuthUser,
+) -> ApiResult<Vec<Value>> {
+    require_admin(&user)?;
+    type Row = (i64, String, String, String, String, String, String);
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT r.id, r.crop_name, r.note, r.status, u.name, u.role, COALESCE(r.created_at, '')
+         FROM crop_requests r JOIN users u ON u.id = r.requested_by
+         ORDER BY r.status = 'open' DESC, r.id DESC LIMIT 200",
+    )
+    .fetch_all(&pool)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| {
+                json!({
+                    "id": r.0, "crop_name": r.1, "note": r.2, "status": r.3,
+                    "requested_by": r.4, "role": r.5, "created_at": r.6,
+                })
+            })
+            .collect(),
+    ))
+}
+
+#[derive(Deserialize, Default)]
+struct CropDecisionBody {
+    /// Corrected spelling to add instead of the requested name.
+    name: Option<String>,
+}
+
+/// POST /api/admin/crop-requests/:id/add|dismiss
+async fn decide_crop_request(
+    State(pool): State<SqlitePool>,
+    user: AuthUser,
+    Path((id, action)): Path<(i64, String)>,
+    body: Option<Json<CropDecisionBody>>,
+) -> ApiResult<Value> {
+    require_admin(&user)?;
+    let b = body.map(|Json(b)| b).unwrap_or_default();
+    let (requester, requested): (i64, String) = sqlx::query_as(
+        "SELECT requested_by, crop_name FROM crop_requests WHERE id = ? AND status = 'open'",
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| bad("This request was already handled or does not exist"))?;
+    let mut tx = pool.begin().await?;
+    let (status, crop_id, title) = match action.as_str() {
+        "add" => {
+            let name = text(b.name.as_deref().unwrap_or(&requested), "Crop name", 2, 80)?;
+            let crop = crate::db::find_or_create_crop_tx(&mut tx, &name).await?;
+            log(
+                &mut *tx,
+                user.user_id,
+                "crops.create",
+                "crops",
+                Some(crop.id),
+                json!({ "name": crop.name, "from_request": id }),
+            )
+            .await?;
+            (
+                "added",
+                Some(crop.id),
+                format!("{} added to the crop list", crop.name),
+            )
+        }
+        "dismiss" => (
+            "dismissed",
+            None,
+            format!("Crop request for {requested} not added"),
+        ),
+        _ => return Err(bad("Action must be add or dismiss")),
+    };
+    sqlx::query(
+        "UPDATE crop_requests SET status = ?, crop_id = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(status)
+    .bind(crop_id)
+    .bind(user.user_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    log(
+        &mut *tx,
+        user.user_id,
+        &format!("crop_request.{action}"),
+        "crop_request",
+        Some(id),
+        json!({ "crop_name": requested }),
+    )
+    .await?;
+    notify(
+        &mut *tx,
+        requester,
+        &title,
+        "Thank you for the suggestion.",
+        None,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(
+        json!({ "id": id, "status": status, "crop_id": crop_id }),
+    ))
 }
 
 #[cfg(test)]

@@ -141,8 +141,19 @@ pub async fn create_crop(
     if payload.name.trim().is_empty() {
         return Err(AppError::BadRequest("Crop name is required".into()));
     }
-    require_role(&pool, auth_user.user_id, &["farmer", "fpo", "buyer"]).await?;
-    Ok(Json(db::find_or_create_crop(&pool, &payload.name).await?))
+    // Crops are master data: only admins add them (others send a crop request).
+    require_role(&pool, auth_user.user_id, &["admin"]).await?;
+    let crop = db::find_or_create_crop(&pool, &payload.name).await?;
+    crate::admin::log(
+        &pool,
+        auth_user.user_id,
+        "crops.create",
+        "crops",
+        Some(crop.id),
+        serde_json::json!({ "name": crop.name }),
+    )
+    .await?;
+    Ok(Json(crop))
 }
 
 pub async fn create_buyer_demand(

@@ -15,7 +15,8 @@ use sqlx::{FromRow, Sqlite, SqlitePool};
 
 use super::{
     audit, bad, contributions_where, crop_code, fetch_lot, fetch_member, forbidden, manager_org,
-    not_found, offers_where, payouts_where, positive, r2, require, sales_where, text, ApiResult,
+    not_found, notify_buyers_for_fpo_lot, notify_contributors, notify_manager, notify_member,
+    offers_where, org_name, payouts_where, positive, r2, require, sales_where, text, ApiResult,
     EPS,
 };
 use crate::{auth::AuthUser, db, errors::AppError};
@@ -276,7 +277,7 @@ async fn create_pool(
     Json(b): Json<PoolBody>,
 ) -> ApiResult<Pool> {
     let org = manager_org(&pool, &user).await?;
-    let crop = db::find_or_create_crop(&pool, &text(&b.crop_name, "Crop", 1, 80)?).await?;
+    let crop = db::find_crop(&pool, &text(&b.crop_name, "Crop", 1, 80)?).await?;
     let grade = match b.target_grade.as_deref().map(str::trim) {
         None | Some("") => None,
         Some(g @ ("A" | "B" | "C")) => Some(g.to_string()),
@@ -493,8 +494,8 @@ async fn record_intake(
             "Intake can only be recorded while the pool is collecting. Reopen it first.",
         ));
     }
-    let (status, member_name): (String, String) = sqlx::query_as(
-        "SELECT c.status, m.name FROM fpo_contributions c JOIN fpo_members m ON m.id = c.member_id
+    let (status, member_name, member_id): (String, String, i64) = sqlx::query_as(
+        "SELECT c.status, m.name, m.id FROM fpo_contributions c JOIN fpo_members m ON m.id = c.member_id
          WHERE c.id = ? AND c.pool_id = ? AND c.fpo_id = ?",
     )
     .bind(cid)
@@ -505,7 +506,7 @@ async fn record_intake(
     .ok_or_else(|| not_found("Pledge not found in this pool"))?;
     let note = text(b.note.as_deref().unwrap_or(""), "Note", 0, 300)?;
     let mut tx = pool.begin().await?;
-    match b.action.as_str() {
+    let message: (&str, String, String) = match b.action.as_str() {
         "receive" => {
             if status != "pending" {
                 return Err(bad(format!("This pledge is already {status}")));
@@ -540,6 +541,14 @@ async fn record_intake(
                 format!("{member_name}: {qty} q, grade {grade}"),
             )
             .await?;
+            (
+                "order",
+                format!("{} pledge received", p.crop_name),
+                format!(
+                    "{} weighed {qty} q of your {} at grade {grade}.",
+                    org.name, p.crop_name
+                ),
+            )
         }
         "reject" => {
             if !matches!(status.as_str(), "pending" | "approved") {
@@ -566,10 +575,22 @@ async fn record_intake(
                 format!("{member_name}: {note}"),
             )
             .await?;
+            (
+                "rejected",
+                format!("{} pledge not accepted", p.crop_name),
+                format!(
+                    "{} could not accept your {} pledge: {note}",
+                    org.name, p.crop_name
+                ),
+            )
         }
         _ => return Err(bad("Action must be receive or reject")),
-    }
+    };
     tx.commit().await?;
+    notify_member(
+        &pool, member_id, message.0, &message.1, &message.2, "/my-fpo",
+    )
+    .await?;
     Ok(Json(json!({ "id": cid })))
 }
 
@@ -583,6 +604,7 @@ async fn pool_action(
     let next = next_pool_status(&p.status, &action).map_err(bad)?;
     let mut tx = pool.begin().await?;
     let mut detail = String::new();
+    let mut listed_lot: Option<i64> = None;
     match action.as_str() {
         "list" => {
             // Every received contribution goes into one bulk lot; undelivered pledges are closed.
@@ -656,6 +678,7 @@ async fn pool_action(
                 .execute(&mut *tx)
                 .await?;
             detail = format!("{code}: {total} q, grade {grade}");
+            listed_lot = Some(lot_id);
         }
         "cancel" => {
             release_source_lots(
@@ -696,6 +719,36 @@ async fn pool_action(
     )
     .await?;
     tx.commit().await?;
+    if let Some(lot_id) = listed_lot {
+        notify_contributors(
+            &pool,
+            "c.lot_id = ?",
+            lot_id,
+            "order",
+            &format!("{} pool listed for sale", p.crop_name),
+            &format!(
+                "{} has listed the {} pool you contributed to. You will hear when it sells.",
+                org.name, p.crop_name
+            ),
+            "/my-fpo",
+        )
+        .await?;
+        notify_buyers_for_fpo_lot(&pool, lot_id).await?;
+    } else if action == "cancel" {
+        notify_contributors(
+            &pool,
+            "c.pool_id = ? AND c.rejection_note = 'Pool cancelled'",
+            id,
+            "rejected",
+            &format!("{} pool cancelled", p.crop_name),
+            &format!(
+                "{} cancelled the {} pool. Your crop is free to sell elsewhere.",
+                org.name, p.crop_name
+            ),
+            "/my-fpo",
+        )
+        .await?;
+    }
     fetch_pool(&pool, org.id, id).await.map(|p| Json(json!(p)))
 }
 
@@ -817,6 +870,19 @@ async fn request_to_join(
         message,
     )
     .await?;
+    let farmer: String = sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
+        .bind(user.user_id)
+        .fetch_one(&pool)
+        .await?;
+    notify_manager(
+        &pool,
+        fpo_id,
+        "general",
+        "New request to join",
+        &format!("{farmer} wants to join your FPO."),
+        "/fpo/farmers",
+    )
+    .await?;
     Ok(Json(json!({ "id": id })))
 }
 
@@ -922,6 +988,36 @@ async fn decide_join_request(
     )
     .await?;
     tx.commit().await?;
+    let (title, body) = if next == "approved" {
+        (
+            format!("Welcome to {}", org.name),
+            format!(
+                "{} approved your request to join. You can now pledge crop to its pools.",
+                org.name
+            ),
+        )
+    } else {
+        (
+            format!("{} declined your request", org.name),
+            format!(
+                "{} did not approve your request to join this time.",
+                org.name
+            ),
+        )
+    };
+    crate::admin::notify_typed(
+        &pool,
+        farmer_id,
+        if next == "approved" {
+            "accepted"
+        } else {
+            "rejected"
+        },
+        &title,
+        &body,
+        Some("/my-fpo"),
+    )
+    .await?;
     Ok(Json(json!({ "id": id, "status": next })))
 }
 
@@ -1018,6 +1114,19 @@ async fn farmer_pledge(
     )
     .await?;
     tx.commit().await?;
+    let farmer: String = sqlx::query_scalar("SELECT name FROM fpo_members WHERE id = ?")
+        .bind(member_id)
+        .fetch_one(&pool)
+        .await?;
+    notify_manager(
+        &pool,
+        fpo_id,
+        "order",
+        &format!("New pledge to {} pool", p.crop_name),
+        &format!("{farmer} pledged {qty} q. Record the intake when it arrives."),
+        &format!("/fpo/pools/{id}"),
+    )
+    .await?;
     Ok(Json(json!({ "id": cid, "quantity_quintals": qty })))
 }
 
@@ -1089,9 +1198,27 @@ async fn post_fpo_announcement(
         "announcement posted",
         "announcement",
         Some(id),
-        title,
+        title.clone(),
     )
     .await?;
+    let members: Vec<i64> = sqlx::query_scalar(
+        "SELECT DISTINCT user_id FROM fpo_members WHERE fpo_id = ? AND status = 'active' AND user_id IS NOT NULL",
+    )
+    .bind(org.id)
+    .fetch_all(&pool)
+    .await?;
+    let from = org_name(&pool, org.id).await?;
+    for m in members {
+        crate::admin::notify_typed(
+            &pool,
+            m,
+            "general",
+            &format!("{from}: {title}"),
+            &body.chars().take(200).collect::<String>(),
+            Some("/my-fpo"),
+        )
+        .await?;
+    }
     Ok(Json(json!({ "id": id })))
 }
 
@@ -1157,6 +1284,99 @@ pub(crate) async fn demand_highlights(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn pledge_received_notifies_the_farmer() {
+        let opts = SqliteConnectOptions::from_str("sqlite::memory:")
+            .unwrap()
+            .foreign_keys(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(opts)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let user = |name: &'static str, role: &'static str, phone: &'static str| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>(
+                    "INSERT INTO users (name, role, phone_number, status) VALUES (?, ?, ?, 'active') RETURNING id",
+                )
+                .bind(name)
+                .bind(role)
+                .bind(phone)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+            }
+        };
+        let manager = user("Kisan FPO", "fpo", "9000000301").await;
+        let farmer = user("Harjit", "farmer", "9000000302").await;
+        let fpo: i64 = sqlx::query_scalar(
+            "INSERT INTO fpo_organizations (manager_user_id, name, district, state, verified)
+             VALUES (?, 'Kisan FPO', 'Ludhiana', 'Punjab', 1) RETURNING id",
+        )
+        .bind(manager)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let member: i64 = sqlx::query_scalar(
+            "INSERT INTO fpo_members (fpo_id, user_id, name, phone) VALUES (?, ?, 'Harjit', '9000000302') RETURNING id",
+        )
+        .bind(fpo)
+        .bind(farmer)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let pool_id: i64 = sqlx::query_scalar(
+            "INSERT INTO fpo_pools (fpo_id, crop_id, target_quantity_quintals, collection_center, collection_deadline, status)
+             VALUES (?, 2, 100, 'Khanna yard', date('now', '+7 days'), 'collecting') RETURNING id",
+        )
+        .bind(fpo)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mgr = AuthUser {
+            user_id: manager,
+            role: "fpo".into(),
+            status: "active".into(),
+            name: "Kisan FPO".into(),
+        };
+        let p = fetch_pool(&pool, fpo, pool_id).await.unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        let cid = insert_pledge(&mut tx, &p, member, 12.0, None, "fpo", "2000-01-01")
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        let _ = record_intake(
+            State(pool.clone()),
+            mgr,
+            Path((pool_id, cid)),
+            Json(IntakeBody {
+                action: "receive".into(),
+                received_quintals: Some(11.5),
+                assessed_grade: Some("B".into()),
+                note: None,
+            }),
+        )
+        .await
+        .unwrap();
+        let (title, body, link): (String, String, Option<String>) = sqlx::query_as(
+            "SELECT title, body, link FROM user_notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(farmer)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(title.contains("pledge received"), "{title}");
+        assert!(
+            body.contains("11.5 q") && body.contains("grade B"),
+            "{body}"
+        );
+        assert_eq!(link.as_deref(), Some("/my-fpo"));
+    }
 
     #[test]
     fn pool_transitions() {

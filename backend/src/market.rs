@@ -670,6 +670,7 @@ pub async fn create_offer(
         )));
     }
     let buyer_id = if user.role == "buyer" {
+        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
         if lot.farmer_id == user.user_id {
             return Err(bad("You cannot bid on your own lot"));
         }
@@ -760,6 +761,9 @@ pub async fn accept_offer(
     let offer = load_offer(&pool, id).await?;
     let role = party_role(&offer, &user)?;
     deals::can_respond(&offer.status, &offer.created_by_role, role).map_err(bad)?;
+    if role == "buyer" {
+        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+    }
     if offer.lot_status != "open" {
         return Err(bad(format!(
             "This lot is {} and can no longer be sold here",
@@ -926,6 +930,9 @@ async fn counter_offer(
     let role = party_role(&offer, &user)?;
     deals::can_respond(&offer.status, &offer.created_by_role, role).map_err(bad)?;
     deals::validate_counter_price(offer.price_offered, body.price).map_err(bad)?;
+    if role == "buyer" {
+        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+    }
     if offer.lot_status != "open" {
         return Err(bad(format!("This lot is {}", offer.lot_status)));
     }
@@ -2411,6 +2418,7 @@ async fn get_profile(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResul
     Ok(Json(json!({
         "id": u.0, "name": u.1, "role": u.2, "phone": u.3, "status": u.4, "member_since": u.5,
         "preferred_language": u.6, "location": location, "state": location.as_deref().and_then(region_of),
+        "needs_district": user.role == "farmer" && crate::admin::location_needs_district(location.as_deref()),
         "urgency_level": urgency,
         "verified": buyer.map(|b| b.0 == 1), "trust_score": buyer.map(|b| b.1),
         "stats": {
@@ -2424,6 +2432,8 @@ async fn get_profile(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResul
 struct ProfileBody {
     name: Option<String>,
     location: Option<String>,
+    district: Option<String>,
+    state: Option<String>,
     urgency_level: Option<String>,
     preferred_language: Option<String>,
 }
@@ -2438,7 +2448,14 @@ async fn update_profile(
     if name.as_ref().is_some_and(|n| n.chars().count() < 2) {
         return Err(bad("Name must be at least 2 characters"));
     }
-    let location = clean(b.location.as_deref(), "Location", 100)?;
+    let location = if b.district.is_some() || b.state.is_some() {
+        Some(crate::admin::farmer_location(
+            b.district.as_deref(),
+            b.state.as_deref(),
+        )?)
+    } else {
+        clean(b.location.as_deref(), "Location", 100)?
+    };
     let urgency = clean(b.urgency_level.as_deref(), "Urgency", 10)?;
     if urgency
         .as_deref()
@@ -2722,6 +2739,94 @@ mod tests {
             Ok(_) => 200,
             Err(e) => e.into_response().status().as_u16(),
         }
+    }
+
+    #[tokio::test]
+    async fn unverified_buyer_cannot_offer_or_accept() {
+        let (pool, farmer, _buyer, other, lot) = setup().await;
+        sqlx::query("UPDATE buyers SET is_verified = 0 WHERE id = ?")
+            .bind(other.user_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        // Bidding is refused with 403.
+        let bid = create_offer(
+            State(pool.clone()),
+            me(&other),
+            Json(CreateOffer {
+                lot_id: lot,
+                price_offered: 2100.0,
+                buyer_id: None,
+            }),
+        )
+        .await;
+        assert_eq!(status_of(bid), 403);
+        // A farmer may still offer the lot, but the buyer cannot accept it.
+        let o = offer(&pool, &farmer, lot, 2200.0, Some(other.user_id)).await;
+        assert_eq!(
+            status_of(accept_offer(State(pool.clone()), me(&other), Path(o.id)).await),
+            403
+        );
+        // Once an admin verifies the buyer, accepting works.
+        sqlx::query("UPDATE buyers SET is_verified = 1 WHERE id = ?")
+            .bind(other.user_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            status_of(accept_offer(State(pool.clone()), me(&other), Path(o.id)).await),
+            200
+        );
+    }
+
+    #[tokio::test]
+    async fn farmer_registration_stores_district_and_state() {
+        let (pool, ..) = setup().await;
+        let place = |d: &'static str, s: &'static str| crate::db::FpoSignup {
+            district: Some(d),
+            state: Some(s),
+            ..Default::default()
+        };
+        let u = crate::db::register_farmer(
+            &pool,
+            "Gurpreet Singh",
+            "9000000199",
+            "1234",
+            "farmer",
+            place("Ludhiana", "punjab"),
+        )
+        .await
+        .unwrap();
+        let loc: String = sqlx::query_scalar("SELECT location FROM farmers WHERE id = ?")
+            .bind(u.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(loc, "Ludhiana, Punjab");
+        assert_eq!(region_of(&loc), Some("Punjab"));
+        assert!(!crate::admin::location_needs_district(Some(&loc)));
+        assert!(crate::admin::location_needs_district(Some("Maharashtra")));
+        // District and state are required for farmers.
+        let missing = crate::db::register_farmer(
+            &pool,
+            "No Place",
+            "9000000198",
+            "1234",
+            "farmer",
+            crate::db::FpoSignup::default(),
+        )
+        .await;
+        assert_eq!(status_of(missing), 400);
+        let bad_state = crate::db::register_farmer(
+            &pool,
+            "Bad State",
+            "9000000197",
+            "1234",
+            "farmer",
+            place("Ludhiana", "Atlantis"),
+        )
+        .await;
+        assert_eq!(status_of(bad_state), 400);
     }
 
     #[tokio::test]

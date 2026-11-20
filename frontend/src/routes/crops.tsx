@@ -6,7 +6,8 @@ import { PageHeader, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
 import { inr, kg, type Lot } from "@/lib/agri";
 import { useCreateLot } from "@/hooks/use-lots";
-import { useCropOptions, useEnsureCrop, useMyLots } from "@/hooks/use-my-lots";
+import { useCatalogueCrops, useEnsureCrop, useMyLots } from "@/hooks/use-my-lots";
+import { RequestCrop } from "@/components/agri/request-crop";
 import { useUpdateLot, useWithdrawLot } from "@/hooks/use-market";
 import { cropEmoji } from "@/lib/crop-catalog";
 import { toast } from "sonner";
@@ -86,13 +87,11 @@ function Crops() {
   const updateLot = useUpdateLot();
   const withdrawLot = useWithdrawLot();
 
-  const { options: cropOptions, isLive: cropListLive } = useCropOptions();
+  const { options: cropOptions } = useCatalogueCrops();
   const filteredCrops = useMemo(() => {
     const q = cropSearch.trim().toLowerCase();
-    const list = q ? cropOptions.filter((c) => c.toLowerCase().includes(q)) : cropOptions;
-    // Let the farmer add a crop that is not in any list yet.
-    if (q && !cropOptions.some((c) => c.toLowerCase() === q)) return [cropSearch.trim(), ...list];
-    return list;
+    // Only crops in the list can be chosen; missing ones are requested from the admin.
+    return q ? cropOptions.filter((c) => c.toLowerCase().includes(q)) : cropOptions;
   }, [cropOptions, cropSearch]);
 
   const ensureCrop = useEnsureCrop();
@@ -428,8 +427,7 @@ function Crops() {
                 <div className="flex items-baseline justify-between">
                   <label className="text-sm text-muted-foreground">{t("Crop type")}</label>
                   <span className="text-[11px] text-muted-foreground">
-                    {cropOptions.length} {t("crops")} ·{" "}
-                    {cropListLive ? t("live Mandi list") : t("offline list")}
+                    {cropOptions.length} {t("crops")}
                   </span>
                 </div>
                 <div className="mt-1 rounded-xl border border-border bg-background focus-within:border-primary">
@@ -464,9 +462,6 @@ function Crops() {
                         >
                           <span>{cropEmoji(c)}</span>
                           <span className="flex-1">{t(c)}</span>
-                          {!cropOptions.includes(c) && (
-                            <span className="text-[11px] opacity-75">{t("add new")}</span>
-                          )}
                         </button>
                       </li>
                     ))}
@@ -476,6 +471,9 @@ function Crops() {
                   {t("Selected")}: {cropEmoji(formCrop)}{" "}
                   <strong className="text-foreground">{formCrop}</strong>
                 </p>
+                <div className="mt-1.5">
+                  <RequestCrop key={cropSearch} initial={cropSearch.trim()} />
+                </div>
               </div>
 
               <div>

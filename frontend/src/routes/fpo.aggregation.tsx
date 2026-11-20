@@ -4,7 +4,8 @@ import { Check, CheckCircle2, Layers, Plus, Wheat, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { fpoApi, type Contribution, type FpoLot } from "@/services/fpo-api";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
-import { useCropOptions } from "@/hooks/use-my-lots";
+import { useCatalogueCrops } from "@/hooks/use-my-lots";
+import { RequestCrop } from "@/components/agri/request-crop";
 import { cropEmoji } from "@/lib/crop-catalog";
 import { CreatePoolModal, PoolCard } from "@/components/fpo/pool-ui";
 import { cn } from "@/lib/utils";
@@ -498,7 +499,7 @@ function CombinePanel({
 function AddCropModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const members = useFpoQuery(["members", "", "active"], () => fpoApi.members("", "active"));
-  const { options } = useCropOptions();
+  const { options } = useCatalogueCrops();
   const [form, setForm] = useState({
     member_id: "",
     crop_name: "",
@@ -572,13 +573,14 @@ function AddCropModal({ onClose }: { onClose: () => void }) {
             value={form.crop_name}
             onChange={(e) => setForm({ ...form, crop_name: e.target.value })}
             placeholder={t("Type to search, e.g. Wheat")}
-            hint="Crop names follow the mandi (Agmarknet) list"
+            hint="Pick a crop from the AgriSense list"
           />
           <datalist id="fpo-crop-list">
             {options.map((o) => (
               <option key={o} value={o} />
             ))}
           </datalist>
+          <RequestCrop />
           <Input
             id="c-variety"
             label="Variety (optional)"

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { LanguageSelector } from "@/components/agri/language-selector";
 import { homeFor, setSession } from "@/services/session";
 import { getAuthErrorMessage, registerFarmer } from "@/services/api-client";
+import { INDIAN_STATES } from "@/lib/states";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -103,6 +104,10 @@ function RegisterPage() {
                 toast.error(t("Please set a 4-digit PIN."));
                 return;
               }
+              if (role !== "buyer" && (!fpo.district.trim() || !fpo.state)) {
+                toast.error(t("Enter your district and choose your state."));
+                return;
+              }
               if (role === "fpo" && !fpo.registration_no.trim()) {
                 toast.error(t("Enter your FPO registration number."));
                 return;
@@ -114,7 +119,11 @@ function RegisterPage() {
                   phone,
                   pin,
                   role,
-                  role === "fpo" ? fpo : undefined,
+                  role === "fpo"
+                    ? fpo
+                    : role === "farmer"
+                      ? { district: fpo.district, state: fpo.state }
+                      : undefined,
                 );
                 setSession(user);
                 toast.success(t("Account created successfully"), {
@@ -187,6 +196,46 @@ function RegisterPage() {
               />
             </div>
 
+            {role !== "buyer" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm text-muted-foreground" htmlFor="district">
+                    {t("District")}
+                  </label>
+                  <input
+                    id="district"
+                    value={fpo.district}
+                    onChange={(e) => setFpo({ ...fpo, district: e.target.value })}
+                    placeholder={role === "farmer" ? "Ludhiana" : undefined}
+                    required
+                    minLength={2}
+                    maxLength={60}
+                    autoComplete="address-level2"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground" htmlFor="state">
+                    {t("State")}
+                  </label>
+                  <select
+                    id="state"
+                    value={fpo.state}
+                    onChange={(e) => setFpo({ ...fpo, state: e.target.value })}
+                    required
+                    className={inputCls}
+                  >
+                    <option value="">{t("Choose state")}</option>
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {t(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
             {role === "fpo" && (
               <fieldset className="space-y-4 rounded-2xl border border-border p-4">
                 <legend className="px-1 text-sm font-medium">{t("FPO details")}</legend>
@@ -203,35 +252,6 @@ function RegisterPage() {
                     maxLength={60}
                     className={inputCls}
                   />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="text-sm text-muted-foreground" htmlFor="district">
-                      {t("District")}
-                    </label>
-                    <input
-                      id="district"
-                      value={fpo.district}
-                      onChange={(e) => setFpo({ ...fpo, district: e.target.value })}
-                      required
-                      maxLength={80}
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground" htmlFor="state">
-                      {t("State")}
-                    </label>
-                    <input
-                      id="state"
-                      value={fpo.state}
-                      onChange={(e) => setFpo({ ...fpo, state: e.target.value })}
-                      placeholder="Maharashtra"
-                      required
-                      maxLength={80}
-                      className={inputCls}
-                    />
-                  </div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground" htmlFor="crops">

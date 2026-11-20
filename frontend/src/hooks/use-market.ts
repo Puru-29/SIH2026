@@ -40,11 +40,6 @@ import {
 } from "@/services/api-client";
 import { getSession } from "@/services/session";
 
-const isTrader = () => {
-  const role = getSession()?.role;
-  return role === "farmer" || role === "buyer";
-};
-
 /** Everything a deal action can change. */
 export function refreshMarket(qc: QueryClient) {
   for (const key of [
@@ -306,12 +301,7 @@ export function useMyProfile() {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      name?: string;
-      location?: string;
-      urgency_level?: UrgencyLevel;
-      preferred_language?: string;
-    }) => updateMyProfile(body),
+    mutationFn: (body: Parameters<typeof updateMyProfile>[0]) => updateMyProfile(body),
     onSuccess: (data) => {
       qc.setQueryData(["my-profile", getSession()?.userId], data);
       void qc.invalidateQueries({ queryKey: ["lot-signals"] });
@@ -325,7 +315,8 @@ export function useNotificationsFeed() {
   return useQuery<BackendNotification[]>({
     queryKey: ["notifications-feed", getSession()?.userId],
     queryFn: getNotificationsFeed,
-    enabled: isTrader() || getSession()?.role === "fpo",
+    // Every portal (farmer, buyer, FPO, admin) reads the same notification table.
+    enabled: Boolean(getSession()),
     refetchInterval: 30_000,
     staleTime: 10_000,
   });

@@ -1,110 +1,14 @@
 /**
- * Service layer. All UI reads data through these functions so that swapping the
- * mock adapter for a real backend only requires changes in this folder.
+ * Static content for the landing page, calculators and AgriBot. Live data
+ * (lots, offers, orders, notifications, FPO pools) comes from api-client.ts.
  */
-import {
-  BUYERS,
-  DRIVERS,
-  FORECAST,
-  LOCATIONS,
-  LOTS,
-  MARKETS,
-  ORDERS,
-  ORDER_TIMELINE,
-  PAYMENTS,
-  SIGNALS,
-  TRACKING_EVENTS,
-  buildComparison,
-  roadKm,
-  transportPerKg,
-} from "@/lib/agri";
+import { BUYERS, roadKm, transportPerKg } from "@/lib/agri";
 import type { Coords } from "@/lib/agri";
-import {
-  FAQS,
-  FPO_POOLS,
-  NOTIFICATION_FEED,
-  PROFILE,
-  TESTIMONIALS,
-  TICKER,
-  TRUST_METRICS,
-} from "./mock-data";
-import type { AppNotification, FarmerProfile } from "./types";
+import { FAQS, TESTIMONIALS, TICKER, TRUST_METRICS } from "./mock-data";
 
 export * from "./types";
 
-/**
- * Static collections and helpers, re-exported so UI code has a single import
- * surface. Replace the bodies in this folder to move onto a real backend.
- */
-export {
-  BUYERS,
-  DEFAULT_LOCATION,
-  DRIVERS,
-  FORECAST,
-  LOCATIONS,
-  LOTS,
-  MARKETS,
-  NOTIFICATIONS,
-  ORDERS,
-  ORDER_TIMELINE,
-  PAYMENTS,
-  SIGNALS,
-  TRACKING_EVENTS,
-  buildComparison,
-  haversine,
-  inr,
-  kg,
-  roadKm,
-  transportPerKg,
-} from "@/lib/agri";
-
-/** Simulated network latency for the mock adapter. */
-const delay = <T>(value: T, ms = 120): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(value), ms));
-
-/* ---------------------------------------------------------------- catalogue */
-
-export const fetchLocations = () => delay(LOCATIONS);
-export const fetchCropLots = () => delay(LOTS);
-export const fetchMarkets = () => delay(MARKETS);
-export const fetchBuyers = () => delay(BUYERS);
-export const fetchOrders = () => delay(ORDERS);
-export const fetchOrderTimeline = () => delay(ORDER_TIMELINE);
-export const fetchTrackingEvents = () => delay(TRACKING_EVENTS);
-export const fetchPayments = () => delay(PAYMENTS);
-export const fetchForecast = () => delay(FORECAST);
-export const fetchSignals = () => delay(SIGNALS);
-export const fetchPriceDrivers = () => delay(DRIVERS);
-export const fetchComparison = (from: Coords) => delay(buildComparison(from));
-
-/** Synchronous accessors used by components that render during SSR. */
-export const cropLots = () => LOTS;
-export const markets = () => MARKETS;
-export const buyers = () => BUYERS;
-export const orders = () => ORDERS;
-export const payments = () => PAYMENTS;
-export const locations = () => LOCATIONS;
-
-/* ------------------------------------------------------------------ profile */
-
-let profileState: FarmerProfile = PROFILE;
-
-export const getProfile = () => profileState;
-export const fetchProfile = () => delay(profileState);
-export const updateProfile = async (patch: Partial<FarmerProfile>) => {
-  profileState = { ...profileState, ...patch };
-  return delay(profileState, 200);
-};
-
-/* ------------------------------------------------------------ notifications */
-
-export const getNotifications = () => NOTIFICATION_FEED;
-export const fetchNotifications = () => delay(NOTIFICATION_FEED);
-
-/* ---------------------------------------------------------------------- FPO */
-
-export const getFpoPools = () => FPO_POOLS;
-export const fetchFpoPools = () => delay(FPO_POOLS);
+export { LOCATIONS, inr } from "@/lib/agri";
 
 /* ------------------------------------------------------------------ landing */
 
@@ -168,57 +72,14 @@ export function calculateNetRealization({
   };
 }
 
-export type AggregationResult = {
-  pooledKg: number;
-  soloNetPerKg: number;
-  pooledNetPerKg: number;
-  gainPerKg: number;
-  totalGain: number;
-};
+/* ---------------------------------------------------------- virtual assistant */
 
-export function aggregateLots(poolId: string, memberIds: string[]): AggregationResult | null {
-  const pool = FPO_POOLS.find((p) => p.id === poolId);
-  if (!pool) return null;
-  const pooledKg = pool.members
-    .filter((m) => memberIds.includes(m.id))
-    .reduce((sum, m) => sum + m.quantity, 0);
-  const qualifies = pooledKg >= pool.targetKg * 0.8;
-  const soloNetPerKg = Math.round((pool.basePrice - pool.soloFreight) * 10) / 10;
-  const pooledNetPerKg = qualifies
-    ? Math.round((pool.bulkPrice - pool.pooledFreight) * 10) / 10
-    : soloNetPerKg;
-  const gainPerKg = Math.round((pooledNetPerKg - soloNetPerKg) * 10) / 10;
-  return {
-    pooledKg,
-    soloNetPerKg,
-    pooledNetPerKg,
-    gainPerKg,
-    totalGain: Math.round(gainPerKg * pooledKg),
-  };
-}
-
-export type { AppNotification };
-
-/* -------------------------------------------- cold chain & virtual assistant */
-
-import { BOT_ANSWERS, BOT_FALLBACK, BOT_GREETING, COLD_CHAIN_FACILITIES } from "./mock-data";
+import { BOT_ANSWERS, BOT_FALLBACK, BOT_GREETING } from "./mock-data";
 import { detectLanguage, BOT_LANG_INFO } from "./language-detector";
 import type { SupportedBotLang, DetectionResult } from "./language-detector";
 
-export {
-  BOT_ANSWERS,
-  BOT_FALLBACK,
-  BOT_GREETING,
-  COLD_CHAIN_FACILITIES,
-  detectLanguage,
-  BOT_LANG_INFO,
-};
+export { BOT_ANSWERS, BOT_FALLBACK, BOT_GREETING, detectLanguage, BOT_LANG_INFO };
 export type { SupportedBotLang, DetectionResult };
-
-export const getFacilities = () => COLD_CHAIN_FACILITIES;
-export const fetchFacilities = () => delay(COLD_CHAIN_FACILITIES);
-export const getBotAnswers = () => BOT_ANSWERS;
-export const fetchBotAnswers = () => delay(BOT_ANSWERS);
 
 export interface AgriBotResponse {
   text: string;

@@ -43,8 +43,8 @@ function Markets() {
   // Fetch the catalogue first because the prices endpoint requires crop_id.
   const pricesQuery = useAllMarketPrices(location.state);
   const buyerPricesQuery = useBuyerPrices();
-  const livePrices = pricesQuery.data ?? [];
-  const buyerPrices = buyerPricesQuery.data ?? [];
+  const livePrices = useMemo(() => pricesQuery.data ?? [], [pricesQuery.data]);
+  const buyerPrices = useMemo(() => buyerPricesQuery.data ?? [], [buyerPricesQuery.data]);
   const availableBuyerCrops = useMemo(
     () => Array.from(new Set(buyerPrices.map((offer) => offer.crop_name))).sort(),
     [buyerPrices],

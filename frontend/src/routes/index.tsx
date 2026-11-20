@@ -333,8 +333,8 @@ function Landing() {
             ].map(([n, t, b]) => (
               <Panel key={n}>
                 <span className="font-serif text-4xl text-primary/30">{n}</span>
-                <h3 className="mt-4 font-serif text-2xl">{tr(t)}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{tr(b)}</p>
+                <h3 className="mt-4 font-serif text-2xl">{tr(t ?? "")}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{tr(b ?? "")}</p>
               </Panel>
             ))}
           </div>
@@ -362,8 +362,8 @@ function Landing() {
               <div key={t} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
                 <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-sm font-medium">{tr(t)}</p>
-                  <p className="text-xs text-muted-foreground">{tr(b)}</p>
+                  <p className="text-sm font-medium">{tr(t ?? "")}</p>
+                  <p className="text-xs text-muted-foreground">{tr(b ?? "")}</p>
                 </div>
               </div>
             ))}

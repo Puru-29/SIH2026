@@ -21,6 +21,7 @@ import { logout } from "@/services/api-client";
 import { useRequireRole } from "@/hooks/use-require-role";
 import { useFpoQuery } from "@/hooks/use-fpo";
 import { adminApi } from "@/services/admin-api";
+import { NotificationBell } from "@/components/agri/notification-bell";
 
 const ADMIN_NAV = [
   { to: "/admin", label: "Overview", icon: Gauge },
@@ -124,6 +125,7 @@ export function AdminLayout() {
             {t("Platform administration")}
           </p>
           <div className="ml-auto flex items-center gap-2">
+            <NotificationBell className="h-10 w-10" />
             <div
               role="group"
               aria-label="Language"

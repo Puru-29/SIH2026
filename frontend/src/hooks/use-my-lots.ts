@@ -157,7 +157,18 @@ export function useCropOptions() {
   };
 }
 
-/** Find-or-create a crop by name and refresh the crop catalogue. */
+/** Crops in the AgriSense list (admin-managed). Forms that save a crop pick from these. */
+export function useCatalogueCrops() {
+  const cropsQuery = useCrops();
+  const options = useMemo(
+    () =>
+      [...new Set((cropsQuery.data ?? []).map((c) => c.name))].sort((a, b) => a.localeCompare(b)),
+    [cropsQuery.data],
+  );
+  return { options, isLoading: cropsQuery.isLoading };
+}
+
+/** Resolve a crop name to an existing crop (see ensureCrop). */
 export function useEnsureCrop() {
   const qc = useQueryClient();
   return useMutation<BackendCrop, Error, string>({

@@ -2,7 +2,6 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import { useEffect, useState } from "react";
 import {
   BarChart3,
-  Bell,
   Boxes,
   ClipboardCheck,
   Handshake,
@@ -22,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/agri/notification-bell";
 import { useI18n } from "@/lib/i18n";
 import { logout } from "@/services/api-client";
 import { useRequireRole } from "@/hooks/use-require-role";
@@ -85,7 +85,6 @@ export function FpoLayout() {
   const session = useRequireRole(["fpo"]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [bellOpen, setBellOpen] = useState(false);
   const isManager = session !== null;
   const pending = session?.status === "pending";
 
@@ -222,32 +221,18 @@ export function FpoLayout() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <LangToggle />
-            <div className="relative">
-              <button
-                onClick={() => setBellOpen((o) => !o)}
-                className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
-                aria-label={`${t("Notifications")}: ${count}`}
-                aria-expanded={bellOpen}
-              >
-                <Bell className="h-5 w-5" />
-                {count > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--fpo-gold)] px-1 text-[11px] font-bold text-[var(--fpo-gold-ink)]">
-                    {count}
-                  </span>
-                )}
-              </button>
-              {bellOpen && (
-                <div className="fpo-card absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] p-2">
-                  {count === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">
-                      {t("Nothing needs your attention right now.")}
+            <NotificationBell
+              badgeClassName="bg-[var(--fpo-gold)] text-[var(--fpo-gold-ink)]"
+              extra={
+                count > 0 && (
+                  <div className="mt-1 border-t border-border pt-2">
+                    <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t("Needs your attention")}
                     </p>
-                  ) : (
-                    notes.data!.map((n, i) => (
+                    {notes.data!.map((n, i) => (
                       <Link
                         key={i}
                         to={n.link as "/fpo"}
-                        onClick={() => setBellOpen(false)}
                         className="flex gap-3 rounded-xl p-3 text-sm hover:bg-secondary"
                       >
                         <span
@@ -262,11 +247,11 @@ export function FpoLayout() {
                         />
                         {n.message}
                       </Link>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )
+              }
+            />
             <span
               className="hidden h-11 w-11 items-center justify-center rounded-full bg-primary text-base font-semibold uppercase text-primary-foreground sm:flex"
               title={`${org.data?.name ?? ""} · ${t("Signed in as")} ${session.name ?? ""}`}

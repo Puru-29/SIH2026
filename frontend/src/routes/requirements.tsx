@@ -12,7 +12,8 @@ import {
   getBuyerDemands,
   type BackendBuyerPrice,
 } from "@/services/api-client";
-import { useCropOptions, useEnsureCrop } from "@/hooks/use-my-lots";
+import { useCatalogueCrops, useEnsureCrop } from "@/hooks/use-my-lots";
+import { RequestCrop } from "@/components/agri/request-crop";
 import { useDemandMatches, useFulfilDemand, useUpdateDemand } from "@/hooks/use-market";
 import { useCreateOffer } from "@/hooks/use-offers";
 import {
@@ -54,7 +55,7 @@ function Requirements() {
     queryKey: ["buyer-demands"],
     queryFn: getBuyerDemands,
   });
-  const { options: cropOptions } = useCropOptions();
+  const { options: cropOptions } = useCatalogueCrops();
   const ensureCrop = useEnsureCrop();
   const update = useUpdateDemand();
   const fulfil = useFulfilDemand();
@@ -167,13 +168,16 @@ function Requirements() {
       {showForm && (
         <Panel>
           <form onSubmit={submitRequirement} className="grid gap-4 sm:grid-cols-2">
-            <Select label="Crop" value={crop} onChange={(e) => setCrop(e.target.value)}>
-              {cropOptions.map((c) => (
-                <option key={c} value={c}>
-                  {t(c)}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-1.5">
+              <Select label="Crop" value={crop} onChange={(e) => setCrop(e.target.value)}>
+                {cropOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {t(c)}
+                  </option>
+                ))}
+              </Select>
+              <RequestCrop />
+            </div>
             <Select label="Quality" value={quality} onChange={(e) => setQuality(e.target.value)}>
               {QUALITIES.map((q) => (
                 <option key={q} value={q}>

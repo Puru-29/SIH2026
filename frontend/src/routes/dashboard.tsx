@@ -15,6 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { PortalLayout } from "@/components/agri/portal-layout";
+import { ConfirmDistrict } from "@/components/agri/confirm-district";
 import { Metric, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
 import { inr, kg, type LotStatus } from "@/lib/agri";
@@ -117,6 +118,8 @@ function FarmerDashboard() {
           {location.belt}
         </p>
       </div>
+
+      <ConfirmDistrict />
 
       {/* AI decision hero */}
       <Panel className="bg-primary text-primary-foreground">

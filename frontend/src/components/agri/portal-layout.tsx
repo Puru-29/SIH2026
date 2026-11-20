@@ -35,6 +35,7 @@ import { FontSizeControl } from "./font-size-control";
 import type { UserRole } from "@/services/session";
 import { logout } from "@/services/api-client";
 import { useRequireRole } from "@/hooks/use-require-role";
+import { useMyProfile } from "@/hooks/use-market";
 
 const FARMER_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -79,6 +80,7 @@ export function PortalLayout({
   const [open, setOpen] = useState(false);
   const { location } = useFarmLocation();
   const { unread } = useNotifications();
+  const profile = useMyProfile();
   const { t } = useI18n();
   const navigate = useNavigate();
   // FPO managers are never allowed here: they have their own portal at /fpo.
@@ -203,6 +205,18 @@ export function PortalLayout({
             </button>
           </div>
         </header>
+
+        {isBuyer && profile.data?.verified === false ? (
+          <div
+            role="status"
+            className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:px-8"
+          >
+            <strong>{t("Your account is being verified")}</strong> —{" "}
+            {t(
+              "you can make offers once approved. Meanwhile you can browse produce and post requirements.",
+            )}
+          </div>
+        ) : null}
 
         <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">{children}</main>
       </div>

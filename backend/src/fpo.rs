@@ -121,10 +121,12 @@ pub fn routes() -> Router<SqlitePool> {
             "/api/fpo-market/offers/:id/respond",
             post(buyer_respond_offer),
         )
+        .route(
+            "/api/fpo-market/sales/:id/disputes",
+            post(buyer_raise_dispute),
+        )
         .route("/api/admin/fpos", get(admin_fpos))
-        .route("/api/admin/fpos/:id/verify", post(admin_verify_fpo))
         .route("/api/admin/buyers", get(admin_buyers))
-        .route("/api/admin/buyers/:id/verify", post(admin_verify_buyer))
 }
 
 /* -------------------------------------------------------------------------- */
@@ -212,6 +214,79 @@ async fn require(pool: &SqlitePool, user: &AuthUser, roles: &[&str]) -> Result<S
             roles.join(" / ")
         )))
     }
+}
+
+/// Notifies the manager of an FPO.
+async fn notify_manager(
+    pool: &SqlitePool,
+    fpo_id: i64,
+    kind: &str,
+    title: &str,
+    body: &str,
+    link: &str,
+) -> Result<(), AppError> {
+    let manager: Option<i64> =
+        sqlx::query_scalar("SELECT manager_user_id FROM fpo_organizations WHERE id = ?")
+            .bind(fpo_id)
+            .fetch_optional(pool)
+            .await?;
+    if let Some(m) = manager {
+        crate::admin::notify_typed(pool, m, kind, title, body, Some(link)).await?;
+    }
+    Ok(())
+}
+
+/// Notifies an FPO member, if the member has a farmer account.
+async fn notify_member(
+    pool: &SqlitePool,
+    member_id: i64,
+    kind: &str,
+    title: &str,
+    body: &str,
+    link: &str,
+) -> Result<(), AppError> {
+    let user: Option<i64> = sqlx::query_scalar("SELECT user_id FROM fpo_members WHERE id = ?")
+        .bind(member_id)
+        .fetch_optional(pool)
+        .await?
+        .flatten();
+    if let Some(u) = user {
+        crate::admin::notify_typed(pool, u, kind, title, body, Some(link)).await?;
+    }
+    Ok(())
+}
+
+/// Notifies every member with an account who has a contribution in this filter.
+async fn notify_contributors(
+    pool: &SqlitePool,
+    filter_sql: &str,
+    id: i64,
+    kind: &str,
+    title: &str,
+    body: &str,
+    link: &str,
+) -> Result<(), AppError> {
+    let users: Vec<i64> = sqlx::query_scalar(&format!(
+        "SELECT DISTINCT m.user_id FROM fpo_contributions c JOIN fpo_members m ON m.id = c.member_id
+         WHERE m.user_id IS NOT NULL AND {filter_sql}"
+    ))
+    .bind(id)
+    .fetch_all(pool)
+    .await?;
+    for u in users {
+        crate::admin::notify_typed(pool, u, kind, title, body, Some(link)).await?;
+    }
+    Ok(())
+}
+
+async fn org_name(pool: &SqlitePool, fpo_id: i64) -> Result<String, AppError> {
+    Ok(
+        sqlx::query_scalar("SELECT name FROM fpo_organizations WHERE id = ?")
+            .bind(fpo_id)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or_default(),
+    )
 }
 
 async fn audit<'c, E>(
@@ -898,7 +973,7 @@ async fn create_contribution(
         ));
     }
     let harvest = date(&b.harvest_date, "Harvest date")?;
-    let crop = db::find_or_create_crop(&pool, &text(&b.crop_name, "Crop", 1, 80)?).await?;
+    let crop = db::find_crop(&pool, &text(&b.crop_name, "Crop", 1, 80)?).await?;
     let variety = text(b.variety.as_deref().unwrap_or(""), "Variety", 0, 80)?;
     let note = text(
         b.quality_note.as_deref().unwrap_or(""),
@@ -1175,6 +1250,7 @@ async fn create_lot(
     )
     .await?;
     tx.commit().await?;
+    notify_buyers_for_fpo_lot(&pool, lot_id).await?;
     fetch_lot(&pool, org.id, lot_id).await.map(Json)
 }
 
@@ -1882,6 +1958,50 @@ struct NewOfferBody {
     note: Option<String>,
 }
 
+/// Tells buyers with an open requirement for this crop that a new FPO lot is listed.
+pub(crate) async fn notify_buyers_for_fpo_lot(
+    pool: &SqlitePool,
+    lot_id: i64,
+) -> Result<(), AppError> {
+    type LotRow = (i64, String, f64, Option<String>, String, String);
+    let (crop_id, crop, qty, grade, fpo, place): LotRow = sqlx::query_as(
+        "SELECT l.crop_id, c.name, l.total_quintals, l.grade, o.name, trim(o.district || ', ' || o.state, ', ')
+         FROM fpo_lots l JOIN crops c ON c.id = l.crop_id JOIN fpo_organizations o ON o.id = l.fpo_id
+         WHERE l.id = ?",
+    )
+    .bind(lot_id)
+    .fetch_one(pool)
+    .await?;
+    let buyers: Vec<i64> = sqlx::query_scalar(
+        "SELECT DISTINCT d.buyer_id FROM buyer_demand d JOIN users u ON u.id = d.buyer_id
+         WHERE d.crop_id = ? AND d.status = 'open' AND date(d.required_by) >= date('now') AND u.status = 'active'",
+    )
+    .bind(crop_id)
+    .fetch_all(pool)
+    .await?;
+    let grade = grade
+        .as_deref()
+        .map(|g| format!(" (grade {g})"))
+        .unwrap_or_default();
+    let place = if place.is_empty() {
+        String::new()
+    } else {
+        format!(", {place}")
+    };
+    for buyer in buyers {
+        crate::admin::notify_typed(
+            pool,
+            buyer,
+            "matching_lot",
+            &format!("New {crop} FPO lot matches your requirement"),
+            &format!("{qty} q of {crop}{grade} from {fpo}{place}."),
+            Some("/browse-produce"),
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 async fn insert_offer(
     pool: &SqlitePool,
     fpo_id: i64,
@@ -1957,6 +2077,39 @@ async fn insert_offer(
     )
     .await?;
     tx.commit().await?;
+    let code = lot
+        .lot_code
+        .clone()
+        .unwrap_or_else(|| lot.crop_name.clone());
+    if side == "buyer" {
+        let buyer: String = sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
+            .bind(buyer_id)
+            .fetch_one(pool)
+            .await?;
+        notify_manager(
+            pool,
+            fpo_id,
+            "offer",
+            &format!("New offer on {code}"),
+            &format!(
+                "{buyer} offered ₹{price}/q for {qty} q of {}.",
+                lot.crop_name
+            ),
+            "/fpo/marketplace",
+        )
+        .await?;
+    } else {
+        let fpo = org_name(pool, fpo_id).await?;
+        crate::admin::notify_typed(
+            pool,
+            buyer_id,
+            "offer",
+            &format!("{fpo} sent you an offer"),
+            &format!("{qty} q of {} at ₹{price}/q.", lot.crop_name),
+            Some("/browse-produce"),
+        )
+        .await?;
+    }
     Ok(id)
 }
 
@@ -2154,7 +2307,71 @@ async fn respond(
     )
     .await?;
     tx.commit().await?;
+    notify_offer_response(pool, &offer, side, &b.action).await?;
     Ok(result)
+}
+
+/// Tells the other side what happened to an FPO offer, and pool contributors when it sold.
+async fn notify_offer_response(
+    pool: &SqlitePool,
+    offer: &OfferCore,
+    side: &str,
+    action: &str,
+) -> Result<(), AppError> {
+    let (crop, code): (String, Option<String>) = sqlx::query_as(
+        "SELECT c.name, l.lot_code FROM fpo_lots l JOIN crops c ON c.id = l.crop_id WHERE l.id = ?",
+    )
+    .bind(offer.lot_id)
+    .fetch_one(pool)
+    .await?;
+    let code = code.unwrap_or_else(|| crop.clone());
+    let (kind, verb) = match action {
+        "accept" => ("accepted", "accepted"),
+        "reject" => ("rejected", "rejected"),
+        _ => ("counter", "countered"),
+    };
+    if side == "fpo" {
+        let fpo = org_name(pool, offer.fpo_id).await?;
+        crate::admin::notify_typed(
+            pool,
+            offer.buyer_id,
+            kind,
+            &format!("{fpo} {verb} your offer"),
+            &format!("{code}: {crop}."),
+            Some("/browse-produce"),
+        )
+        .await?;
+    } else {
+        let buyer: String = sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
+            .bind(offer.buyer_id)
+            .fetch_one(pool)
+            .await?;
+        notify_manager(
+            pool,
+            offer.fpo_id,
+            kind,
+            &format!("{buyer} {verb} on {code}"),
+            &format!("The buyer {verb} the offer on {crop}."),
+            "/fpo/marketplace",
+        )
+        .await?;
+    }
+    if action == "accept" {
+        notify_contributors(
+            pool,
+            "c.lot_id = ?",
+            offer.lot_id,
+            "order",
+            &format!("Your pooled {crop} has sold"),
+            &format!(
+                "A buyer bought {} q at ₹{}/q. Your share is paid after the buyer pays in full.",
+                offer.quantity_quintals, offer.price_per_quintal
+            ),
+            "/my-fpo",
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 async fn event(
@@ -2224,6 +2441,7 @@ async fn buyer_create_offer(
     Json(b): Json<NewOfferBody>,
 ) -> ApiResult<Value> {
     require(&pool, &user, &["buyer"]).await?;
+    crate::admin::require_verified_buyer(&pool, user.user_id).await?;
     let fpo_id: i64 = sqlx::query_scalar("SELECT fpo_id FROM fpo_lots WHERE id = ?")
         .bind(b.lot_id)
         .fetch_optional(&pool)
@@ -2247,6 +2465,9 @@ async fn buyer_respond_offer(
         .await?
         .filter(|o| o.buyer_id == user.user_id)
         .ok_or_else(|| not_found("Offer not found"))?;
+    if b.action != "reject" {
+        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+    }
     Ok(Json(respond(&pool, offer, "buyer", user.user_id, b).await?))
 }
 
@@ -2642,6 +2863,23 @@ async fn create_distribution(
     )
     .await?;
     tx.commit().await?;
+    for r in &rows {
+        if let Some(member) = r["member_id"].as_i64() {
+            let net = r["net"].as_f64().unwrap_or_default();
+            notify_member(
+                &pool,
+                member,
+                "payment",
+                &format!("Your {} payout is ready", sale.crop_name),
+                &format!(
+                    "{} calculated your share: ₹{net:.2} after deductions.",
+                    org.name
+                ),
+                "/my-fpo",
+            )
+            .await?;
+        }
+    }
     Ok(Json(json!({ "created": rows.len() })))
 }
 
@@ -2658,8 +2896,8 @@ async fn pay_payout(
     Json(b): Json<PayoutPayBody>,
 ) -> ApiResult<Value> {
     let org = manager_org(&pool, &user).await?;
-    let (sale_id, status): (i64, String) = sqlx::query_as(
-        "SELECT p.sale_id, p.status FROM fpo_payouts p JOIN fpo_sales s ON s.id = p.sale_id WHERE p.id = ? AND s.fpo_id = ?",
+    let (sale_id, status, member_id, net): (i64, String, i64, f64) = sqlx::query_as(
+        "SELECT p.sale_id, p.status, p.member_id, CAST(p.net AS REAL) FROM fpo_payouts p JOIN fpo_sales s ON s.id = p.sale_id WHERE p.id = ? AND s.fpo_id = ?",
     )
     .bind(id)
     .bind(org.id)
@@ -2688,7 +2926,19 @@ async fn pay_payout(
         "farmer paid",
         "payout",
         Some(id),
-        reference,
+        reference.clone(),
+    )
+    .await?;
+    notify_member(
+        &pool,
+        member_id,
+        "payment",
+        &format!("₹{net:.2} paid by {}", org.name),
+        &format!(
+            "Your {} payout was paid on {paid_on}. Reference: {reference}.",
+            sale.crop_name
+        ),
+        "/my-fpo",
     )
     .await?;
     Ok(Json(json!({ "id": id, "status": "paid" })))
@@ -3229,10 +3479,30 @@ async fn insert_grievance(
         "grievance raised",
         "grievance",
         Some(id),
-        subject,
+        subject.clone(),
     )
     .await?;
     tx.commit().await?;
+    if role != "fpo" {
+        let who: String = sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+        let what = if role == "buyer" {
+            "dispute"
+        } else {
+            "complaint"
+        };
+        notify_manager(
+            pool,
+            fpo_id,
+            "dispute",
+            &format!("New {what} from {who}"),
+            &subject,
+            "/fpo/grievances",
+        )
+        .await?;
+    }
     Ok(id)
 }
 
@@ -3426,6 +3696,27 @@ async fn farmer_grievance(
         }
     }
     let id = insert_grievance(&pool, fpo_id, user.user_id, "farmer", Some(member_id), &b).await?;
+    Ok(Json(json!({ "id": id })))
+}
+
+/// POST /api/fpo-market/sales/:id/disputes — a buyer raises a dispute on an FPO sale.
+async fn buyer_raise_dispute(
+    State(pool): State<SqlitePool>,
+    user: AuthUser,
+    Path(sale_id): Path<i64>,
+    Json(mut b): Json<GrievanceBody>,
+) -> ApiResult<Value> {
+    require(&pool, &user, &["buyer"]).await?;
+    let fpo_id: i64 =
+        sqlx::query_scalar("SELECT fpo_id FROM fpo_sales WHERE id = ? AND buyer_id = ?")
+            .bind(sale_id)
+            .bind(user.user_id)
+            .fetch_optional(&pool)
+            .await?
+            .ok_or_else(|| not_found("Sale not found"))?;
+    b.sale_id = Some(sale_id);
+    b.member_id = None;
+    let id = insert_grievance(&pool, fpo_id, user.user_id, "buyer", None, &b).await?;
     Ok(Json(json!({ "id": id })))
 }
 
@@ -3871,110 +4162,10 @@ async fn admin_fpos(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult
     })).collect()))
 }
 
-#[derive(Deserialize)]
-struct VerifyBody {
-    verified: bool,
-}
-
-async fn admin_verify_fpo(
-    State(pool): State<SqlitePool>,
-    user: AuthUser,
-    Path(id): Path<i64>,
-    Json(b): Json<VerifyBody>,
-) -> ApiResult<Value> {
-    require(&pool, &user, &["admin"]).await?;
-    let mut tx = pool.begin().await?;
-    let done = sqlx::query(
-        "UPDATE fpo_organizations SET verified = ?,
-            verified_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
-            verified_by = CASE WHEN ? = 1 THEN ? ELSE NULL END
-         WHERE id = ?",
-    )
-    .bind(b.verified as i64)
-    .bind(b.verified as i64)
-    .bind(b.verified as i64)
-    .bind(user.user_id)
-    .bind(id)
-    .execute(&mut *tx)
-    .await?;
-    if done.rows_affected() == 0 {
-        return Err(not_found("FPO not found"));
-    }
-    // Approval activates the FPO manager's account; removal sends it back to pending.
-    sqlx::query(
-        "UPDATE users SET status = ? WHERE id = (SELECT manager_user_id FROM fpo_organizations WHERE id = ?)
-         AND status <> 'suspended'",
-    )
-    .bind(if b.verified { "active" } else { "pending" })
-    .bind(id)
-    .execute(&mut *tx)
-    .await?;
-    crate::admin::log(
-        &mut *tx,
-        user.user_id,
-        if b.verified {
-            "fpo.approve"
-        } else {
-            "fpo.unverify"
-        },
-        "fpo",
-        Some(id),
-        serde_json::json!({}),
-    )
-    .await?;
-    tx.commit().await?;
-    audit(
-        &pool,
-        id,
-        user.user_id,
-        if b.verified {
-            "verified by admin"
-        } else {
-            "verification removed"
-        },
-        "organisation",
-        Some(id),
-        String::new(),
-    )
-    .await?;
-    Ok(Json(json!({ "id": id, "verified": b.verified })))
-}
-
 async fn admin_buyers(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Vec<Value>> {
     require(&pool, &user, &["admin"]).await?;
     let stats = all_buyer_stats(&pool).await?;
     Ok(Json(stats.iter().map(|b| json!({ "id": b.id, "name": b.name, "verified": b.verified == 1, "fpo_deals": b.fpo_deals, "marketplace_deals": b.marketplace_deals, "trust": trust(b) })).collect()))
-}
-
-async fn admin_verify_buyer(
-    State(pool): State<SqlitePool>,
-    user: AuthUser,
-    Path(id): Path<i64>,
-    Json(b): Json<VerifyBody>,
-) -> ApiResult<Value> {
-    require(&pool, &user, &["admin"]).await?;
-    if user_role(&pool, id).await? != "buyer" {
-        return Err(bad("This account is not a buyer"));
-    }
-    sqlx::query("INSERT INTO buyers (id, trust_score, is_verified) VALUES (?, 5.0, ?) ON CONFLICT(id) DO UPDATE SET is_verified = excluded.is_verified")
-        .bind(id)
-        .bind(b.verified as i64)
-        .execute(&pool)
-        .await?;
-    crate::admin::log(
-        &pool,
-        user.user_id,
-        if b.verified {
-            "buyer.approve"
-        } else {
-            "buyer.unverify"
-        },
-        "user",
-        Some(id),
-        serde_json::json!({}),
-    )
-    .await?;
-    Ok(Json(json!({ "id": id, "verified": b.verified })))
 }
 
 #[cfg(test)]

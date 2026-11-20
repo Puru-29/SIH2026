@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 
 // Runtime sqlx queries instead of query! macros — avoids needing a live DB at compile time.
 
-/// FPO details collected at registration.
+/// Details collected at registration: district/state for farmers and FPOs, the rest for FPOs.
 #[derive(Default)]
 pub struct FpoSignup<'a> {
     pub registration_no: Option<&'a str>,
@@ -27,6 +27,12 @@ pub async fn register_farmer(
             "Only farmer, buyer and FPO accounts can be created".into(),
         ));
     }
+    // Farmers must say where they farm: it drives FPO search, freight and mandi prices.
+    let farmer_location = if role == "farmer" {
+        Some(crate::admin::farmer_location(fpo.district, fpo.state)?)
+    } else {
+        None
+    };
     // FPOs wait for admin verification before they can use the portal.
     let status = if role == "fpo" { "pending" } else { "active" };
     let pin_hash = crate::auth::hash_pin(pin);
@@ -51,12 +57,11 @@ pub async fn register_farmer(
     })?;
 
     if role == "farmer" {
-        sqlx::query(
-            "INSERT INTO farmers (id, location, urgency_level) VALUES (?, 'Maharashtra', 'medium')",
-        )
-        .bind(user.id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("INSERT INTO farmers (id, location, urgency_level) VALUES (?, ?, 'medium')")
+            .bind(user.id)
+            .bind(&farmer_location)
+            .execute(&mut *tx)
+            .await?;
     } else if role == "fpo" {
         crate::fpo::create_org_for_manager(&mut *tx, user.id, &user.name, &user.phone_number, &fpo)
             .await?;
@@ -268,7 +273,40 @@ fn estimate_perishability_days(name: &str) -> i64 {
     }
 }
 
-/// Returns the crop with this name (case-insensitive), creating it if needed.
+/// Returns an existing crop by name (case-insensitive). Only admins add crops.
+pub async fn find_crop(pool: &SqlitePool, name: &str) -> Result<Crop, AppError> {
+    sqlx::query_as::<_, Crop>(
+        "SELECT id, name, perishability_days FROM crops WHERE lower(name) = lower(?)",
+    )
+    .bind(name.trim())
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest(format!(
+            "{} is not in the crop list. Pick a crop from the list, or use \"Request a crop\" to ask the admin to add it.",
+            name.trim()
+        ))
+    })
+}
+
+/// Admin-only: find-or-create inside an open transaction.
+pub async fn find_or_create_crop_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    name: &str,
+) -> Result<Crop, sqlx::Error> {
+    let name = name.trim();
+    sqlx::query_as::<_, Crop>(
+        "INSERT INTO crops (name, perishability_days) VALUES (?, ?)
+         ON CONFLICT(name) DO UPDATE SET name = name
+         RETURNING id, name, perishability_days",
+    )
+    .bind(name)
+    .bind(estimate_perishability_days(name))
+    .fetch_one(&mut **tx)
+    .await
+}
+
+/// Returns the crop with this name (case-insensitive), creating it if needed. Admin only.
 pub async fn find_or_create_crop(pool: &SqlitePool, name: &str) -> Result<Crop, sqlx::Error> {
     let name = name.trim();
     if let Some(crop) = sqlx::query_as::<_, Crop>(

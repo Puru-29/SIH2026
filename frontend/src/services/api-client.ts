@@ -19,7 +19,7 @@ import { clearUser, getSession, type UserRole, type UserStatus } from "./session
 // Vite replaces import.meta.env.VITE_* at build time.
 // For local dev the proxy in vite.config.ts forwards /api → :8080, so we
 // just use an empty string (same-origin relative URL).
-const BASE_URL: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+const BASE_URL: string = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
 
 // ── Error type ───────────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -140,11 +140,12 @@ export const loginFarmer = (phone: string, pin: string, role: UserRole): Promise
     body: JSON.stringify({ phone, pin, role }),
   });
 
+/** Sign-up place (farmers and FPOs) plus FPO-only details. */
 export interface FpoSignupFields {
-  registration_no: string;
+  registration_no?: string;
   district: string;
   state: string;
-  primary_crops: string;
+  primary_crops?: string;
 }
 
 export const registerFarmer = (
@@ -156,7 +157,7 @@ export const registerFarmer = (
 ): Promise<AuthResponse> =>
   request<AuthResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, phone, pin, role, ...(role === "fpo" ? fpo : {}) }),
+    body: JSON.stringify({ name, phone, pin, role, ...(role === "buyer" ? {} : fpo) }),
   });
 
 /** The signed-in user with role and status from the server. */
@@ -190,12 +191,20 @@ export interface BackendCrop {
 
 export const getCrops = (): Promise<BackendCrop[]> => request<BackendCrop[]>("/api/crops");
 
-/** Find-or-create a crop by name (e.g. a Mandi API commodity). */
-export const ensureCrop = (name: string): Promise<BackendCrop> =>
-  request<BackendCrop>("/api/crops", {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
+/**
+ * Resolves a crop name to an existing crop. Only admins add crops, so a name
+ * that is not in the list is an error with a hint to request it.
+ */
+export async function ensureCrop(name: string): Promise<BackendCrop> {
+  const wanted = name.trim().toLowerCase();
+  const crop = (await getCrops()).find((c) => c.name.toLowerCase() === wanted);
+  if (!crop) {
+    throw new Error(
+      `${name.trim()} is not in the crop list. Pick a crop from the list, or use "Request it" to ask the admin to add it.`,
+    );
+  }
+  return crop;
+}
 
 // ── Market prices ─────────────────────────────────────────────────────────────
 export interface BackendLiveMandiPrice {
@@ -794,6 +803,8 @@ export interface MyProfile {
   urgency_level: UrgencyLevel | null;
   verified: boolean | null;
   trust_score: number | null;
+  /** Farmer saved before district was asked at sign-up: prompt once to confirm it. */
+  needs_district?: boolean;
   stats: {
     lots: number;
     open_lots: number;
@@ -808,6 +819,9 @@ export const getMyProfile = (): Promise<MyProfile> => request<MyProfile>("/api/m
 export const updateMyProfile = (body: {
   name?: string;
   location?: string;
+  /** Farmers: saved together as "District, State". */
+  district?: string;
+  state?: string;
   urgency_level?: UrgencyLevel;
   preferred_language?: string;
 }): Promise<MyProfile> =>
