@@ -32,7 +32,36 @@ struct MandiRecord {
     modal_price: f64,
 }
 
+type PriceCache =
+    std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, Vec<LiveMandiPrice>)>>;
+static PRICE_CACHE: once_cell::sync::Lazy<PriceCache> =
+    once_cell::sync::Lazy::new(Default::default);
+const PRICE_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+
+/// Live prices, cached for 15 minutes per state + commodity (the upstream API
+/// allows 100 requests per 15 minutes per IP).
 pub async fn fetch_prices(
+    state: Option<&str>,
+    commodity: Option<&str>,
+) -> anyhow::Result<Vec<LiveMandiPrice>> {
+    let key = format!(
+        "{}|{}",
+        state.unwrap_or("").trim().to_lowercase(),
+        commodity.unwrap_or("").trim().to_lowercase()
+    );
+    if let Some((at, rows)) = PRICE_CACHE.lock().ok().and_then(|c| c.get(&key).cloned()) {
+        if at.elapsed() < PRICE_CACHE_TTL {
+            return Ok(rows);
+        }
+    }
+    let rows = fetch_prices_uncached(state, commodity).await?;
+    if let Ok(mut c) = PRICE_CACHE.lock() {
+        c.insert(key, (std::time::Instant::now(), rows.clone()));
+    }
+    Ok(rows)
+}
+
+async fn fetch_prices_uncached(
     state: Option<&str>,
     commodity: Option<&str>,
 ) -> anyhow::Result<Vec<LiveMandiPrice>> {

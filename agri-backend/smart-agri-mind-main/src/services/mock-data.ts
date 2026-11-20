@@ -120,15 +120,64 @@ export const FPO_POOLS: FpoPool[] = [
     pooledFreight: 1.2,
     contractStatus: "Open for pooling",
     members: [
-      { id: "M1", name: "Farmer A · Ramesh Patil", village: "Dindori", crop: "Tomato", grade: "Grade A", quantity: 5000 },
-      { id: "M2", name: "Farmer B · Sunita Jadhav", village: "Vani", crop: "Tomato", grade: "Grade A", quantity: 3000 },
-      { id: "M3", name: "Farmer C · Kailas More", village: "Ozar", crop: "Tomato", grade: "Grade B", quantity: 7000 },
-      { id: "M4", name: "Farmer D · Anita Wagh", village: "Pimpalgaon", crop: "Tomato", grade: "Grade A", quantity: 2500 },
+      {
+        id: "M1",
+        name: "Farmer A · Ramesh Patil",
+        village: "Dindori",
+        crop: "Tomato",
+        grade: "Grade A",
+        quantity: 5000,
+      },
+      {
+        id: "M2",
+        name: "Farmer B · Sunita Jadhav",
+        village: "Vani",
+        crop: "Tomato",
+        grade: "Grade A",
+        quantity: 3000,
+      },
+      {
+        id: "M3",
+        name: "Farmer C · Kailas More",
+        village: "Ozar",
+        crop: "Tomato",
+        grade: "Grade B",
+        quantity: 7000,
+      },
+      {
+        id: "M4",
+        name: "Farmer D · Anita Wagh",
+        village: "Pimpalgaon",
+        crop: "Tomato",
+        grade: "Grade A",
+        quantity: 2500,
+      },
     ],
     bids: [
-      { id: "B1", buyer: "Sahyadri Foods", pricePerKg: 33.5, minQuantity: 12000, terms: "50% advance · balance in 3 days", status: "Negotiating" },
-      { id: "B2", buyer: "Mumbai Fresh Co.", pricePerKg: 34.2, minQuantity: 15000, terms: "Payment on delivery", status: "Open" },
-      { id: "B3", buyer: "GreenLeaf Exports", pricePerKg: 35, minQuantity: 18000, terms: "Net 15 days", status: "Open" },
+      {
+        id: "B1",
+        buyer: "Sahyadri Foods",
+        pricePerKg: 33.5,
+        minQuantity: 12000,
+        terms: "50% advance · balance in 3 days",
+        status: "Negotiating",
+      },
+      {
+        id: "B2",
+        buyer: "Mumbai Fresh Co.",
+        pricePerKg: 34.2,
+        minQuantity: 15000,
+        terms: "Payment on delivery",
+        status: "Open",
+      },
+      {
+        id: "B3",
+        buyer: "GreenLeaf Exports",
+        pricePerKg: 35,
+        minQuantity: 18000,
+        terms: "Net 15 days",
+        status: "Open",
+      },
     ],
     payouts: [
       { member: "Farmer A · Ramesh Patil", quantity: 5000, amount: 167500, status: "Scheduled" },
@@ -148,13 +197,48 @@ export const FPO_POOLS: FpoPool[] = [
     pooledFreight: 1.5,
     contractStatus: "Contract signed",
     members: [
-      { id: "M5", name: "Farmer E · Dnyaneshwar Shinde", village: "Lasalgaon", crop: "Onion", grade: "Grade B", quantity: 12000 },
-      { id: "M6", name: "Farmer F · Vaishali Gaikwad", village: "Chandwad", crop: "Onion", grade: "Grade A", quantity: 9000 },
-      { id: "M7", name: "Farmer G · Bhausaheb Kale", village: "Yeola", crop: "Onion", grade: "Grade B", quantity: 9500 },
+      {
+        id: "M5",
+        name: "Farmer E · Dnyaneshwar Shinde",
+        village: "Lasalgaon",
+        crop: "Onion",
+        grade: "Grade B",
+        quantity: 12000,
+      },
+      {
+        id: "M6",
+        name: "Farmer F · Vaishali Gaikwad",
+        village: "Chandwad",
+        crop: "Onion",
+        grade: "Grade A",
+        quantity: 9000,
+      },
+      {
+        id: "M7",
+        name: "Farmer G · Bhausaheb Kale",
+        village: "Yeola",
+        crop: "Onion",
+        grade: "Grade B",
+        quantity: 9500,
+      },
     ],
     bids: [
-      { id: "B4", buyer: "Annapurna Retail", pricePerKg: 20.4, minQuantity: 25000, terms: "Net 7 days", status: "Accepted" },
-      { id: "B5", buyer: "AgroPure Processing", pricePerKg: 19.8, minQuantity: 20000, terms: "Net 10 days", status: "Open" },
+      {
+        id: "B4",
+        buyer: "Annapurna Retail",
+        pricePerKg: 20.4,
+        minQuantity: 25000,
+        terms: "Net 7 days",
+        status: "Accepted",
+      },
+      {
+        id: "B5",
+        buyer: "AgroPure Processing",
+        pricePerKg: 19.8,
+        minQuantity: 20000,
+        terms: "Net 10 days",
+        status: "Open",
+      },
     ],
     payouts: [
       { member: "Farmer E · Dnyaneshwar Shinde", quantity: 12000, amount: 244800, status: "Paid" },
@@ -313,7 +397,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "आज लासलगांव APMC में प्याज ₹18/किलो चल रहा है (आवक 310 टन, इस हफ्ते +1.4%)। नाशिक APMC ₹17.4/किलो है। दिंडोरी से भाड़ा लगभग ₹2.6/किलो, यानी शुद्ध ₹15.4/किलो। इस हफ्ते ग्रेड B, ग्रेड C से बेहतर टिक रहा है।",
       mr: "आज लासलगाव APMC मध्ये कांदा ₹18/किलो आहे (आवक 310 टन, या आठवड्यात +1.4%). नाशिक APMC ₹17.4/किलो. दिंडोरीहून वाहतूक अंदाजे ₹2.6/किलो, म्हणजे निव्वळ ₹15.4/किलो. या आठवड्यात ग्रेड B, ग्रेड C पेक्षा चांगला टिकतो आहे.",
       pa: "ਅੱਜ ਲਾਸਲਗਾਂਵ APMC ਵਿੱਚ ਪਿਆਜ਼ ਦਾ ਭਾਅ ₹18/ਕਿਲੋ ਹੈ (ਆਮਦ 310 ਟਨ, ਇਸ ਹਫ਼ਤੇ +1.4%)। ਨਾਸਿਕ ਮੰਡੀ ₹17.4/ਕਿਲੋ ਹੈ। ਭਾੜਾ ਕੱਟ ਕੇ ਸ਼ੁੱਧ ਮੁਨਾਫ਼ਾ ਲਗਭਗ ₹15.4/ਕਿਲੋ ਰਹੇਗਾ। ਗ੍ਰੇਡ B ਮਾਲ ਇਸ ਹਫ਼ਤੇ ਬਿਹਤਰ ਵਿਕ ਰਿਹਾ ਹੈ।",
-      hinglish: "Aaj Lasalgaon APMC me pyaj ka bhav ₹18/kg chal raha hai (arrivals 310 tonne, is hafte +1.4% up). Nashik APMC ₹17.4/kg hai. Dindori se transport bhada lagbhag ₹2.6/kg aayega, toh aapka net realization kareeb ₹15.4/kg banega. Grade B maal Grade C se behtar perform kar raha hai.",
+      hinglish:
+        "Aaj Lasalgaon APMC me pyaj ka bhav ₹18/kg chal raha hai (arrivals 310 tonne, is hafte +1.4% up). Nashik APMC ₹17.4/kg hai. Dindori se transport bhada lagbhag ₹2.6/kg aayega, toh aapka net realization kareeb ₹15.4/kg banega. Grade B maal Grade C se behtar perform kar raha hai.",
     },
   },
   {
@@ -324,7 +409,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "लातूर का सोयाबीन 7–10 दिन और रोकें। लातूर के आसपास प्रोसेसर मांग मजबूत है और चार-सप्ताह का अनुमान ₹47–48/किलो है, आज ₹46/किलो के मुकाबले। सूखे भंडारण में नुकसान हफ्ते में 0.5% से कम है। नमी 12% से ऊपर जाए तो तुरंत बेचें।",
       mr: "लातूरचा सोयाबीन आणखी 7–10 दिवस थांबवा. लातूरजवळ प्रोसेसर मागणी मजबूत आहे आणि चार आठवड्यांचा अंदाज ₹47–48/किलो आहे, आजच्या ₹46/किलोच्या तुलनेत. कोरड्या साठवणुकीत आठवड्याला 0.5% पेक्षा कमी घट होते. ओलावा 12% च्या वर गेला तर लगेच विका.",
       pa: "ਸੋਇਆਬੀਨ ਨੂੰ 7–10 ਦਿਨ ਹੋਰ ਰੋਕ ਕੇ ਰੱਖੋ। ਪ੍ਰੋਸੈਸਰਾਂ ਦੀ ਮੰਗ ਮਜ਼ਬੂਤ ਹੈ ਅਤੇ ਆਉਣ ਵਾਲੇ ਹਫ਼ਤਿਆਂ ਵਿੱਚ ਰੇਟ ₹47–48/ਕਿਲੋ ਤੱਕ ਜਾਣ ਦੀ ਉਮੀਦ ਹੈ (ਅੱਜ ₹46/ਕਿਲੋ ਹੈ)। ਜੇਕਰ ਨਮੀ 12% ਤੋਂ ਜ਼ਿਆਦਾ ਹੋ ਜਾਵੇ ਤਾਂ ਤੁਰੰਤ ਵੇਚ ਦਿਓ।",
-      hinglish: "Latur soybean lot ko abhi 7–10 din hold karein. Local processors ki demand strong hai aur 4-week forecast ₹47–48/kg ka trend dikha raha hai, jabki aaj ₹46/kg hai. Dry storage me weight loss sirf 0.5%/week hai toh hold karna profitable rahega. Agar moisture 12% se upar ho toh turant bechein.",
+      hinglish:
+        "Latur soybean lot ko abhi 7–10 din hold karein. Local processors ki demand strong hai aur 4-week forecast ₹47–48/kg ka trend dikha raha hai, jabki aaj ₹46/kg hai. Dry storage me weight loss sirf 0.5%/week hai toh hold karna profitable rahega. Agar moisture 12% se upar ho toh turant bechein.",
     },
   },
   {
@@ -335,7 +421,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "पुणे मार्केट यार्ड में टमाटर ₹31/किलो, आवक 530 टन, मांग ऊँची (सात दिन में +4.8%)। दिंडोरी से 210 किमी, भाड़ा ~₹5.5/किलो और भंडारण ₹0.5/किलो — शुद्ध ₹25/किलो। नाशिक APMC ₹28/किलो पर शुद्ध ₹26/किलो देता है, आज वही बेहतर है।",
       mr: "पुणे मार्केट यार्डमध्ये टोमॅटो ₹31/किलो, आवक 530 टन, मागणी जास्त (सात दिवसांत +4.8%). दिंडोरीहून 210 किमी, वाहतूक ~₹5.5/किलो आणि साठवण ₹0.5/किलो — निव्वळ ₹25/किलो. नाशिक APMC ₹28/किलोवर निव्वळ ₹26/किलो देतो, आज तोच पर्याय चांगला.",
       pa: "ਪੁਣੇ ਮੰਡੀ ਯਾਰਡ ਵਿੱਚ ਟਮਾਟਰ ₹31/ਕਿਲੋ ਹੈ (ਮੰਗ +4.8% ਵਧੀ ਹੈ)। 210 ਕਿਲੋਮੀਟਰ ਦੂਰੀ ਕਰਕੇ ਭਾੜਾ ₹5.5/ਕਿਲੋ ਪਵੇਗਾ, ਜਿਸ ਨਾਲ ਸ਼ੁੱਧ ₹25/ਕਿਲੋ ਬਚੇਗਾ। ਨਾਸਿਕ APMC ₹28/ਕਿਲੋ ਤੇ ਸ਼ੁੱਧ ₹26/ਕਿਲੋ ਦਿੰਦੀ ਹੈ, ਇਸ ਲਈ ਨਾਸਿਕ ਵੇਚਣਾ ਅੱਜ ਜ਼ਿਆਦਾ ਫਾਇਦੇਮੰਦ ਹੈ।",
-      hinglish: "Pune Market Yard me tamatar ka rate ₹31/kg hai (arrivals 530 tonne, demand high +4.8%). Dindori se 210 km door hai toh transport ₹5.5/kg lagega — net ₹25/kg bachega. Jabki Nashik APMC me ₹28/kg offer hai aur freight kam hone se net ₹26/kg mil raha hai, isliye aaj Nashik me bechna behtar option hai.",
+      hinglish:
+        "Pune Market Yard me tamatar ka rate ₹31/kg hai (arrivals 530 tonne, demand high +4.8%). Dindori se 210 km door hai toh transport ₹5.5/kg lagega — net ₹25/kg bachega. Jabki Nashik APMC me ₹28/kg offer hai aur freight kam hone se net ₹26/kg mil raha hai, isliye aaj Nashik me bechna behtar option hai.",
     },
   },
   {
@@ -346,7 +433,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "आप एक नमूना क्रेट की फोटो लेते हैं। AgriSense आकार, रंग की एकरूपता, दाग और नमी के संकेत जाँचता है और APMC मानकों के अनुसार लॉट को ग्रेड A, B या C देता है। ग्रेड तय करता है कि कौन से खरीदार मिलेंगे और शुद्ध आय किस भाव पर आँकी जाएगी।",
       mr: "तुम्ही नमुना क्रेटचा फोटो काढता. AgriSense आकार, रंगाची एकसारखेपणा, डाग आणि ओलाव्याचे संकेत तपासतो आणि APMC निकषांनुसार लॉटला ग्रेड A, B किंवा C देतो. ग्रेडवरून कोणते खरेदीदार जुळतील आणि निव्वळ उत्पन्न कोणत्या दराने मोजले जाईल हे ठरते.",
       pa: "ਤੁਸੀਂ ਆਪਣੀ ਫਸਲ ਦੀ ਫੋਟੋ ਅਪਲੋਡ ਕਰਦੇ ਹੋ। AgriSense ਆਕਾਰ, ਰੰਗ, ਦਾਗ ਅਤੇ ਨਮੀ ਦੀ ਜਾਂਚ ਕਰਕੇ APMC ਨਿਯਮਾਂ ਮੁਤਾਬਕ ਗ੍ਰੇਡ A, B ਜਾਂ C ਤੈਅ ਕਰਦਾ ਹੈ। ਇਸ ਨਾਲ ਤੁਹਾਨੂੰ ਪ੍ਰਮਾਣਿਤ ਖਰੀਦਦਾਰ ਅਤੇ ਵਧੀਆ ਰੇਟ ਮਿਲਦੇ ਹਨ।",
-      hinglish: "Aap apne crop crate ki photo upload karte hain. AgriSense computer vision se size distribution, color uniformity, spots aur moisture cues check karke APMC norms ke according Grade A, B ya C assign karta hai. Sahi grade milne se premium buyers connect hote hain aur zyada rate milta hai.",
+      hinglish:
+        "Aap apne crop crate ki photo upload karte hain. AgriSense computer vision se size distribution, color uniformity, spots aur moisture cues check karke APMC norms ke according Grade A, B ya C assign karta hai. Sahi grade milne se premium buyers connect hote hain aur zyada rate milta hai.",
     },
   },
   {
@@ -357,7 +445,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "नाशिक/दिंडोरी क्षेत्र में कोल्ड स्टोरेज का खर्च ₹1.40 से ₹3.20 प्रति क्विंटल प्रति दिन है। सह्याद्री वेयरहाउस जैसी WDRA मान्यता प्राप्त सुविधाएं (+2°C से +8°C) लॉट मूल्य का 70% तक बैंक लोन भी देती हैं। प्याज भंडारण की लागत लगभग ₹1.40/क्विंटल/दिन है।",
       mr: "नाशिक/दिंडोरी पट्ट्यात शीतगृहाचा खर्च ₹1.40 ते ₹3.20 प्रति क्विंटल प्रति दिवस आहे. सह्याद्री वेअरहाऊससारख्या WDRA मान्यताप्राप्त सुविधा (+2°C ते +8°C) मालतारण कर्जाची (70% पर्यंत) सुविधा देतात. कांदा साठवणुकीचा खर्च ₹1.40/क्विंटल/दिवस आहे.",
       pa: "ਕੋਲਡ ਸਟੋਰੇਜ ਦਾ ਖਰਚਾ ਲਗਭਗ ₹1.40 ਤੋਂ ₹3.20 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਪ੍ਰਤੀ ਦਿਨ ਹੈ। WDRA ਪ੍ਰਮਾਣਿਤ ਸਟੋਰੇਜ ਵਿੱਚ ਮਾਲ ਰੱਖ ਕੇ ਤੁਸੀਂ ਫਸਲ ਤੇ 70% ਤੱਕ ਬੈਂਕ ਲੋਨ ਵੀ ਲੈ ਸਕਦੇ ਹੋ।",
-      hinglish: "Nashik aur Dindori belt me cold storage ka rate ₹1.40 se ₹3.20 per quintal per day hai. Sahyadri jaise WDRA-certified warehouses me +2°C to +8°C multi-chamber storage milta hai jahan aapko crop value par 70% tak bank pledge loan bhi mil sakta hai.",
+      hinglish:
+        "Nashik aur Dindori belt me cold storage ka rate ₹1.40 se ₹3.20 per quintal per day hai. Sahyadri jaise WDRA-certified warehouses me +2°C to +8°C multi-chamber storage milta hai jahan aapko crop value par 70% tak bank pledge loan bhi mil sakta hai.",
     },
   },
   {
@@ -368,7 +457,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "AgriConnect के सभी सौदे डिजिटल एस्क्रो से सुरक्षित हैं। खरीदार द्वारा ऑर्डर स्वीकार करने पर 50% अग्रिम राशि लॉक हो जाती है और फार्म गेट पर लोडिंग होते ही जारी कर दी जाती है। शेष 50% डिलीवरी के 24 घंटे के भीतर सीधे आपके बैंक/UPI खाते में जमा हो जाता है।",
       mr: "AgriConnect वरील सर्व व्यवहार डिजिटल एस्क्रो खात्याद्वारे सुरक्षित आहेत. खरेदीदाराने ऑर्डर स्वीकारल्यावर 50% आगाऊ रक्कम लॉक होते आणि शेतात लोडिंग झाल्यावर त्वरित रिलीज केली जाते. उर्वरित 50% वजन पावतीनंतर 24 तासांच्या आत थेट तुमच्या बँक खात्यात जमा होते.",
       pa: "ਸਾਰੇ ਭੁਗਤਾਨ ਐਸਕਰੋ (Escrow) ਸਿਸਟਮ ਰਾਹੀਂ ਸੁਰੱਖਿਅਤ ਹਨ। ਟਰੱਕ ਲੋਡਿੰਗ ਤੇ 50% ਪੇਸ਼ਗੀ ਮਿਲਦੀ ਹੈ ਅਤੇ ਬਾਕੀ 50% ਡਿਲਿਵਰੀ ਦੇ 24 ਘੰਟਿਆਂ ਵਿੱਚ ਸਿੱਧਾ ਤੁਹਾਡੇ ਬੈਂਕ/UPI ਖਾਤੇ ਵਿੱਚ ਆ ਜਾਂਦੀ ਹੈ।",
-      hinglish: "AgriConnect par sabhi payments digital escrow se 100% secure hain. Order accept hone par buyer se 50% advance lock ho jata hai jo truck loading par release hota hai. Baki 50% balance weighbridge verification ke 24 ghante ke andar directly aapke bank account ya UPI me transfer ho jata hai.",
+      hinglish:
+        "AgriConnect par sabhi payments digital escrow se 100% secure hain. Order accept hone par buyer se 50% advance lock ho jata hai jo truck loading par release hota hai. Baki 50% balance weighbridge verification ke 24 ghante ke andar directly aapke bank account ya UPI me transfer ho jata hai.",
     },
   },
   {
@@ -379,7 +469,8 @@ export const BOT_ANSWERS: BotAnswer[] = [
       hi: "FPO एकत्रीकरण से छोटे किसान अपने लॉट जोड़कर 10–20 टन का माल तैयार कर सकते हैं। इससे बल्क टियर मूल्य (+₹2 से ₹3.50/किलो अधिक) मिलता है और ट्रक भाड़ा ₹4.50/किलो से घटकर मात्र ₹1.80/किलो रह जाता है।",
       mr: "FPO एकत्रिकरणाद्वारे छोटे शेतकरी आपले लॉट एकत्र करून 10–20 टनांची मोठी खेप तयार करू शकतात. यामुळे बल्क दर (+₹2 ते ₹3.50/किलो जास्त) मिळतो आणि वाहतूक खर्च ₹4.50/किलोवरून ₹1.80/किलोवर येतो.",
       pa: "FPO ਰਾਹੀਂ ਛੋਟੇ ਕਿਸਾਨ ਮਿਲ ਕੇ 10–20 ਟਨ ਦਾ ਮਾਲ ਤਿਆਰ ਕਰ ਸਕਦੇ ਹਨ। ਇਸ ਨਾਲ ਵੱਡੇ ਵਪਾਰੀਆਂ ਤੋਂ ਵੱਧ ਰੇਟ ਮਿਲਦਾ ਹੈ ਅਤੇ ਟਰਾਂਸਪੋਰਟ ਦਾ ਖਰਚਾ ਵੀ ਅੱਧਾ ਰਹਿ ਜਾਂਦਾ ਹੈ।",
-      hinglish: "FPO aggregation se small farmers apne lots combine karke 10–20 tonne consignment bana sakte hain. Isse bulk buyer rates (+₹2 se ₹3.50/kg extra) milte hain aur shared full truck se freight cost ₹4.50/kg se girkar sirf ₹1.80/kg ho jati hai.",
+      hinglish:
+        "FPO aggregation se small farmers apne lots combine karke 10–20 tonne consignment bana sakte hain. Isse bulk buyer rates (+₹2 se ₹3.50/kg extra) milte hain aur shared full truck se freight cost ₹4.50/kg se girkar sirf ₹1.80/kg ho jati hai.",
     },
   },
 ];
@@ -389,7 +480,8 @@ export const BOT_GREETING: Record<SupportedBotLang, string> = {
   hi: "नमस्ते! मैं आपका AgriConnect AI सलाहकार हूँ। महाराष्ट्र एवं आसपास की मंडियों के भाव, फसल बेचने का सही समय, कोल्ड स्टोरेज या पेमेंट के बारे में किसी भी भाषा में पूछें।",
   mr: "नमस्कार! मी तुमचा AgriConnect AI सहाय्यक आहे. बाजारभाव, विक्रीची योग्य वेळ, वाहतूक, शीतगृह किंवा पेमेंटबाबत मराठी, हिंदी किंवा इंग्रजीत प्रश्न विचारा.",
   pa: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ ਤੁਹਾਡਾ AgriConnect AI ਸਹਾਇਕ ਹਾਂ। ਮੰਡੀ ਭਾਅ, ਫਸਲ ਵੇਚਣ ਦੇ ਸਹੀ ਸਮੇਂ, ਸਟੋਰੇਜ ਜਾਂ ਭੁਗਤਾਨ ਬਾਰੇ ਪੰਜਾਬੀ ਜਾਂ ਕਿਸੇ ਵੀ ਭਾਸ਼ਾ ਵਿੱਚ ਪੁੱਛੋ।",
-  hinglish: "Namaste! Main aapka AgriConnect AI advisor hoon. Mandi rates, selling window, transport freight, cold storage ya payment ke bare me kuch bhi poochiye — main aapki hi language me jawab dunga!",
+  hinglish:
+    "Namaste! Main aapka AgriConnect AI advisor hoon. Mandi rates, selling window, transport freight, cold storage ya payment ke bare me kuch bhi poochiye — main aapki hi language me jawab dunga!",
 };
 
 export const BOT_FALLBACK: Record<SupportedBotLang, string> = {
@@ -397,6 +489,6 @@ export const BOT_FALLBACK: Record<SupportedBotLang, string> = {
   hi: "मैं आपकी बात समझ गया। आप प्याज, टमाटर या सोयाबीन के लाइव मंडी भाव, बेचने का सही समय, कोल्ड स्टोरेज का खर्च, AI ग्रेडिंग या एस्क्रो पेमेंट के बारे में पूछ सकते हैं।",
   mr: "मला तुमचा प्रश्न समजला. डेमो डेटामध्ये तुम्ही कांदा, टोमॅटो किंवा सोयाबीनचे थेट बाजारभाव, विक्रीची योग्य वेळ, शीतगृह खर्च, AI ग्रेडिंग किंवा पेमेंटबाबत विचारू शकता.",
   pa: "ਮੈਨੂੰ ਤੁਹਾਡਾ ਸਵਾਲ ਸਮਝ ਆ ਗਿਆ ਹੈ। ਤੁਸੀਂ ਪਿਆਜ਼, ਟਮਾਟਰ, ਸੋਇਆਬੀਨ ਦੇ ਰੇਟ, ਵੇਚਣ ਦਾ ਸਹੀ ਸਮਾਂ, ਕੋਲਡ ਸਟੋਰੇਜ ਜਾਂ ਭੁਗਤਾਨ ਬਾਰੇ ਪੁੱਛ ਸਕਦੇ ਹੋ।",
-  hinglish: "Mujhe aapka question samajh aa gaya. Demo database me aap pyaj, tamatar, soyabean ke live rates, bechne ka best time, cold storage cost, AI grading ya escrow payment ke bare me pooch sakte hain.",
+  hinglish:
+    "Mujhe aapka question samajh aa gaya. Demo database me aap pyaj, tamatar, soyabean ke live rates, bechne ka best time, cold storage cost, AI grading ya escrow payment ke bare me pooch sakte hain.",
 };
-

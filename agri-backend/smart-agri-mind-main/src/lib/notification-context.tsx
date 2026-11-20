@@ -1,58 +1,98 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { getNotifications, type AppNotification } from "@/services";
-import { useOffers } from "@/hooks/use-offers";
-import { getSession } from "@/services/session";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotificationsFeed,
+} from "@/hooks/use-market";
+import type { NotificationType } from "@/services/api-client";
+
+/** Tabs on the notifications page. */
+export type FeedCategory = "bids" | "orders" | "payments" | "messages" | "updates";
+
+export type FeedItem = {
+  id: number;
+  type: NotificationType;
+  category: FeedCategory;
+  title: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
+  /** Path (and optional query) to open, e.g. "/crops?lot=5". */
+  link: string;
+  linkLabel: string;
+};
+
+const CATEGORY: Record<NotificationType, FeedCategory> = {
+  offer: "bids",
+  counter: "bids",
+  accepted: "bids",
+  rejected: "bids",
+  matching_lot: "bids",
+  order: "orders",
+  payment: "payments",
+  message: "messages",
+  dispute: "updates",
+  admin: "updates",
+  general: "updates",
+};
+
+const LINK_LABEL: Record<FeedCategory, string> = {
+  bids: "Open offer",
+  orders: "Open order",
+  payments: "Open payments",
+  messages: "Open chat",
+  updates: "View",
+};
 
 type Ctx = {
-  items: AppNotification[];
+  items: FeedItem[];
   unread: number;
+  isLoading: boolean;
+  error: Error | null;
   markAllRead: () => void;
-  markRead: (id: string) => void;
+  markRead: (id: number) => void;
 };
 
 const NotificationContext = createContext<Ctx>({
   items: [],
   unread: 0,
+  isLoading: false,
+  error: null,
   markAllRead: () => {},
   markRead: () => {},
 });
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<AppNotification[]>(() =>
-    getNotifications().map((n) => ({ ...n })),
-  );
-  const session = getSession();
-  const { data: offers = [] } = useOffers();
-  const farmerOfferNotifications = session?.role === "farmer"
-    ? offers.map((offer): AppNotification => ({
-        id: `offer-${offer.id}`,
-        category: "bids",
-        title: `New buyer offer for lot #${offer.lot_id}`,
-        body: `Buyer #${offer.buyer_id} offered ₹${(offer.price_offered / 100).toFixed(2)}/kg. Review it under Buyers.`,
-        time: "Just now",
-        read: offer.status !== "pending",
-        link: { to: "/buyers", label: "Review buyer offer" },
-      }))
-    : [];
-  const allItems = [
-    ...farmerOfferNotifications,
-    ...items.filter((item) => !farmerOfferNotifications.some((offer) => offer.id === item.id)),
-  ];
+  const feed = useNotificationsFeed();
+  const markOne = useMarkNotificationRead();
+  const markAll = useMarkAllNotificationsRead();
 
-  const value = useMemo<Ctx>(
-    () => ({
-      items: allItems,
-      unread: allItems.filter((n) => !n.read).length,
-      markAllRead: () => setItems((prev) => prev.map((n) => ({ ...n, read: true }))),
-      markRead: (id: string) =>
-        setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n))),
-    }),
-    [allItems],
-  );
+  const value = useMemo<Ctx>(() => {
+    const items: FeedItem[] = (feed.data ?? []).map((n) => {
+      const category = CATEGORY[n.type] ?? "updates";
+      return {
+        id: n.id,
+        type: n.type,
+        category,
+        title: n.title,
+        body: n.body,
+        createdAt: n.created_at,
+        read: n.read,
+        link: n.link || "/notifications",
+        linkLabel: LINK_LABEL[category],
+      };
+    });
+    return {
+      items,
+      unread: items.filter((n) => !n.read).length,
+      isLoading: feed.isLoading,
+      error: feed.error,
+      markAllRead: () => markAll.mutate(),
+      markRead: (id: number) => markOne.mutate(id),
+    };
+  }, [feed.data, feed.isLoading, feed.error, markAll, markOne]);
 
-  return (
-    <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>
-  );
+  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }
 
 export const useNotifications = () => useContext(NotificationContext);

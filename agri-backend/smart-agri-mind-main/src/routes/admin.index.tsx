@@ -1,129 +1,217 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { BadgeCheck } from "lucide-react";
-import { PortalLayout } from "@/components/agri/portal-layout";
-import { PageHeader, Panel } from "@/components/agri/ui-bits";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { BadgeCheck, Boxes, ClipboardList, IndianRupee, Scale, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { fpoApi } from "@/services/fpo-api";
-import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
+import { adminApi } from "@/services/admin-api";
+import { useFpoQuery } from "@/hooks/use-fpo";
 import {
-  ConfirmButton,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  Card,
   Empty,
   ErrorNote,
   Loading,
+  PageTitle,
+  quintals,
   rupees,
+  Stat,
   Table,
-  VerifiedBadge,
 } from "@/components/fpo/fpo-ui";
+import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/admin")({
-  head: () => ({ meta: [{ title: "Admin — AgriSense" }] }),
-  component: AdminPage,
+export const Route = createFileRoute("/admin/")({
+  component: Overview,
 });
 
-function AdminPage() {
+const gmvConfig = {
+  gmv: { label: "GMV (₹)", color: "oklch(0.38 0.06 172)" },
+} satisfies ChartConfig;
+const regConfig = {
+  count: { label: "New users", color: "oklch(0.65 0.13 70)" },
+} satisfies ChartConfig;
+
+function Overview() {
   const { t } = useI18n();
-  const fpos = useFpoQuery(["admin", "fpos"], fpoApi.adminFpos);
-  const buyers = useFpoQuery(["admin", "buyers"], fpoApi.adminBuyers);
-  const verifyFpo = useFpoMutation(
-    ({ id, v }: { id: number; v: boolean }) => fpoApi.adminVerifyFpo(id, v),
-    { success: "FPO verification updated" },
-  );
-  const verifyBuyer = useFpoMutation(
-    ({ id, v }: { id: number; v: boolean }) => fpoApi.adminVerifyBuyer(id, v),
-    { success: "Buyer verification updated" },
-  );
+  const { data, isLoading, error } = useFpoQuery(["admin", "overview"], adminApi.overview);
+  if (isLoading) return <Loading />;
+  if (error || !data) return <ErrorNote error={error} />;
+
+  const roles = ["farmer", "buyer", "fpo", "admin"].map((role) => ({
+    role,
+    total: data.users_by_role.filter((r) => r.role === role).reduce((s, r) => s + r.count, 0),
+    pending: data.users_by_role.find((r) => r.role === role && r.status === "pending")?.count ?? 0,
+    suspended:
+      data.users_by_role.find((r) => r.role === role && r.status === "suspended")?.count ?? 0,
+    new: data.new_this_week.find((r) => r.role === role)?.count ?? 0,
+  }));
+  const pending = data.pending_verifications.fpos + data.pending_verifications.buyers;
+  const gmv = data.gmv_by_month.map((m) => ({
+    ...m,
+    label: new Date(`${m.month}-01T00:00:00`).toLocaleDateString("en-IN", {
+      month: "short",
+      year: "2-digit",
+    }),
+  }));
+  const regs = data.registrations_by_week.map((w) => ({
+    ...w,
+    label: new Date(`${w.week}T00:00:00`).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+    }),
+  }));
 
   return (
-    <PortalLayout>
-      <PageHeader
-        eyebrow="Admin"
-        title="Verification"
-        description="Check registration documents offline, then verify FPO organisations and buyers. Only verified accounts show the verified badge."
+    <>
+      <PageTitle
+        title="Platform overview"
+        subtitle="Who is using AgriSense, what is being traded, and what needs an administrator."
       />
-      <ErrorNote error={fpos.error ?? buyers.error} />
-      <Panel>
-        <h2 className="mb-3 font-serif text-2xl">{t("FPO organisations")}</h2>
-        {fpos.isLoading ? (
-          <Loading />
-        ) : !fpos.data?.length ? (
-          <Empty title="No FPOs registered yet" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Stat
+          label="Gross merchandise value"
+          value={rupees(data.transactions.gmv)}
+          hint={`${data.transactions.farmer} ${t("farmer deals")} · ${data.transactions.fpo} ${t("FPO bulk deals")}`}
+          icon={<IndianRupee className="h-5 w-5" />}
+        />
+        <Stat
+          label="Active lots"
+          value={data.active_lots.farmer + data.active_lots.fpo}
+          hint={`${quintals(data.active_lots.farmer_quintals + data.active_lots.fpo_quintals)} ${t("on offer")}`}
+          icon={<Boxes className="h-5 w-5" />}
+        />
+        <Stat
+          label="Open buyer demand"
+          value={data.open_demands.count}
+          hint={quintals(data.open_demands.quintals)}
+          icon={<ClipboardList className="h-5 w-5" />}
+        />
+        <Link to="/admin/verification" className="block">
+          <Stat
+            label="Pending verifications"
+            value={pending}
+            hint={`${data.pending_verifications.fpos} ${t("FPOs")} · ${data.pending_verifications.buyers} ${t("buyers")}`}
+            icon={<BadgeCheck className="h-5 w-5" />}
+          />
+        </Link>
+        <Link to="/admin/disputes" className="block">
+          <Stat
+            label="Open disputes"
+            value={data.open_disputes}
+            icon={<Scale className="h-5 w-5" />}
+          />
+        </Link>
+        <Stat
+          label="New registrations this week"
+          value={roles.reduce((s, r) => s + r.new, 0)}
+          icon={<Users className="h-5 w-5" />}
+        />
+      </div>
+
+      <Card title="Users by role">
+        <Table head={["Role", "Total", "New this week", "Pending", "Suspended"]}>
+          {roles.map((r) => (
+            <tr key={r.role}>
+              <td className="font-medium capitalize">{t(r.role === "fpo" ? "FPO" : r.role)}</td>
+              <td className="tabular-nums">{r.total}</td>
+              <td className="tabular-nums">{r.new}</td>
+              <td className="tabular-nums">{r.pending}</td>
+              <td className={cn("tabular-nums", r.suspended > 0 && "text-destructive")}>
+                {r.suspended}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card
+          title="Traded value by month"
+          subtitle="Farmer deals and FPO bulk deals, last 6 months"
+        >
+          {gmv.length === 0 ? (
+            <Empty title="No deals yet" />
+          ) : (
+            <ChartContainer config={gmvConfig} className="h-64 w-full">
+              <BarChart data={gmv} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`}
+                  width={56}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="gmv" fill="var(--color-gmv)" radius={6} isAnimationActive={false} />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </Card>
+        <Card title="New registrations by week" subtitle="Last 8 weeks, all roles">
+          {regs.length === 0 ? (
+            <Empty title="No new registrations" />
+          ) : (
+            <ChartContainer config={regConfig} className="h-64 w-full">
+              <LineChart data={regs} margin={{ left: 0, right: 8 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line
+                  dataKey="count"
+                  stroke="var(--color-count)"
+                  strokeWidth={2.5}
+                  dot={{ r: 4 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ChartContainer>
+          )}
+        </Card>
+      </div>
+
+      <Card
+        title="Price realised vs mandi"
+        subtitle={`${t("Average price on AgriSense deals compared with today's mandi modal price in")} ${data.mandi_state}.`}
+      >
+        {data.price_vs_mandi.length === 0 ? (
+          <Empty title="No completed deals yet" />
         ) : (
           <Table
-            head={["FPO", "Registration no.", "Manager", "Members", "Lots", "Sales", "Status", ""]}
+            head={["Crop", "Traded", "Realised (₹/q)", "Mandi modal today (₹/q)", "Difference"]}
           >
-            {fpos.data.map((o) => (
-              <tr key={o.id}>
-                <td>
-                  <p className="font-medium">{o.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {[o.district, o.state].filter(Boolean).join(", ")}
-                  </p>
+            {data.price_vs_mandi.map((p) => (
+              <tr key={p.crop}>
+                <td className="font-medium">{t(p.crop)}</td>
+                <td className="tabular-nums">{quintals(p.quantity_quintals)}</td>
+                <td className="tabular-nums">{rupees(p.realised_per_quintal)}</td>
+                <td className="tabular-nums">
+                  {p.mandi_modal != null ? (
+                    rupees(p.mandi_modal)
+                  ) : (
+                    <span className="text-muted-foreground">{t("Not available")}</span>
+                  )}
                 </td>
-                <td className="font-mono text-sm">{o.registration_no ?? "—"}</td>
-                <td>
-                  {o.manager}
-                  <p className="text-sm text-muted-foreground">{o.manager_phone}</p>
-                </td>
-                <td className="tabular-nums">{o.members}</td>
-                <td className="tabular-nums">{o.lots}</td>
-                <td className="tabular-nums">{rupees(o.sales_value)}</td>
-                <td>
-                  <VerifiedBadge verified={o.verified} />
-                </td>
-                <td>
-                  <ConfirmButton
-                    size="sm"
-                    variant={o.verified ? "danger" : "primary"}
-                    icon={o.verified ? undefined : <BadgeCheck className="h-4 w-4" />}
-                    label={o.verified ? "Remove verification" : "Verify"}
-                    confirmTitle={o.verified ? "Remove verification?" : "Verify this FPO?"}
-                    confirmBody={
-                      o.verified
-                        ? "Buyers will see this FPO as not verified."
-                        : "Confirm you have checked the FPO's registration documents."
-                    }
-                    onConfirm={() => verifyFpo.mutate({ id: o.id, v: !o.verified })}
-                  />
+                <td
+                  className={cn(
+                    "tabular-nums font-medium",
+                    p.difference_pct != null &&
+                      (p.difference_pct >= 0 ? "text-[var(--fpo-good)]" : "text-destructive"),
+                  )}
+                >
+                  {p.difference_pct != null
+                    ? `${p.difference_pct >= 0 ? "+" : ""}${p.difference_pct}%`
+                    : "—"}
                 </td>
               </tr>
             ))}
           </Table>
         )}
-      </Panel>
-      <Panel>
-        <h2 className="mb-3 font-serif text-2xl">{t("Buyers")}</h2>
-        {buyers.isLoading ? (
-          <Loading />
-        ) : (
-          <Table head={["Buyer", "FPO deals", "Marketplace deals", "Trust", "Status", ""]}>
-            {buyers.data?.map((b) => (
-              <tr key={b.id}>
-                <td className="font-medium">{b.name}</td>
-                <td className="tabular-nums">{b.fpo_deals}</td>
-                <td className="tabular-nums">{b.marketplace_deals}</td>
-                <td className="text-sm">{b.trust.score ?? t("No history")}</td>
-                <td>
-                  <VerifiedBadge verified={b.verified} />
-                </td>
-                <td>
-                  <ConfirmButton
-                    size="sm"
-                    variant={b.verified ? "danger" : "primary"}
-                    label={b.verified ? "Remove verification" : "Verify"}
-                    confirmTitle={b.verified ? "Remove verification?" : "Verify this buyer?"}
-                    confirmBody={
-                      b.verified
-                        ? "FPOs will see this buyer as not verified."
-                        : "Confirm you have checked the buyer's GST / trade licence."
-                    }
-                    onConfirm={() => verifyBuyer.mutate({ id: b.id, v: !b.verified })}
-                  />
-                </td>
-              </tr>
-            ))}
-          </Table>
-        )}
-      </Panel>
-    </PortalLayout>
+      </Card>
+    </>
   );
 }

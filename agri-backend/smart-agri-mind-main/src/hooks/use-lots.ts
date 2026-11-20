@@ -15,6 +15,7 @@ import {
   type CreateLotRequest,
 } from "@/services/api-client";
 import { getSession } from "@/services/session";
+import { refreshMarket } from "@/hooks/use-market";
 
 export type { BackendLot, BackendBuyerDemand, CreateLotRequest };
 
@@ -23,18 +24,18 @@ export function useLots() {
   return useQuery<BackendLot[]>({
     queryKey: ["lots", session?.userId, session?.role],
     queryFn: getLots,
-    enabled: Boolean(session),
+    enabled: session?.role === "farmer" || session?.role === "buyer",
     staleTime: 15_000,
   });
 }
 
-/** Create a new farmer lot. Requires X-User-Id with farmer/fpo role. */
+/** Create a new farmer lot. */
 export function useCreateLot() {
   const qc = useQueryClient();
   return useMutation<BackendLot, Error, CreateLotRequest>({
     mutationFn: createLot,
     // Refetch so the new lot shows up on My Crops, Decision and Dashboard.
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["lots"] }),
+    onSuccess: () => refreshMarket(qc),
   });
 }
 

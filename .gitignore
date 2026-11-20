@@ -1,0 +1,29 @@
+# Local SQLite databases (never commit data)
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Build output and dependencies
+target/
+target-live/
+node_modules/
+dist/
+.output/
+.nitro/
+.wrangler/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Vite / TanStack temp files
+.tanstack/
+.wrangler/
+.nitro/

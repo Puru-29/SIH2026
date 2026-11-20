@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { fpoApi } from "@/services/fpo-api";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import { GrievanceCard, GrievanceForm } from "@/components/fpo/grievance-ui";
+import { AnnouncementsList, JoinFpoPanel, OpenPoolsPanel } from "@/components/fpo/farmer-fpo";
 import {
   Badge,
   Btn,
@@ -38,7 +39,7 @@ function MyFpo() {
   const paid = d?.payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.net, 0) ?? 0;
 
   return (
-    <PortalLayout>
+    <PortalLayout roles={["farmer"]}>
       <PageHeader
         eyebrow="FPO membership"
         title="My FPO"
@@ -55,13 +56,7 @@ function MyFpo() {
       {my.isLoading || !d ? (
         <Loading />
       ) : d.memberships.length === 0 ? (
-        <Panel>
-          <Empty
-            icon={<Users className="h-6 w-6" />}
-            title="You are not linked to an FPO yet"
-            body="Ask your FPO manager to add you as a member using the same mobile number you use to sign in to AgriSense."
-          />
-        </Panel>
+        <JoinFpoPanel />
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
@@ -155,6 +150,8 @@ function MyFpo() {
             )}
           </Panel>
 
+          <OpenPoolsPanel />
+          <AnnouncementsList limit={5} />
           {d.grievances.length > 0 && (
             <div className="space-y-4">
               <h2 className="font-serif text-2xl">{t("My complaints")}</h2>
@@ -166,6 +163,14 @@ function MyFpo() {
             </div>
           )}
         </>
+      )}
+      {d && d.memberships.length > 0 && (
+        <details className="rounded-3xl border border-border bg-card p-5">
+          <summary className="cursor-pointer font-medium">{t("Join another FPO")}</summary>
+          <div className="mt-4">
+            <JoinFpoPanel />
+          </div>
+        </details>
       )}
       {complaining && d && (
         <GrievanceForm

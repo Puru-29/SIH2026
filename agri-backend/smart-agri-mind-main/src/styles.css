@@ -200,20 +200,9 @@
  * Never hardcode font-family values outside this block.
  */
 :root {
-  --font-heading:
-    "Lora",
-    "Noto Sans Devanagari",
-    ui-serif,
-    Georgia,
-    "Times New Roman",
-    serif;
+  --font-heading: "Lora", "Noto Sans Devanagari", ui-serif, Georgia, "Times New Roman", serif;
   --font-body:
-    "Public Sans",
-    "Noto Sans Devanagari",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+    "Public Sans", "Noto Sans Devanagari", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 @theme {
@@ -336,8 +325,18 @@
   --fpo-good-soft: oklch(0.94 0.05 150);
   --fpo-warn: oklch(0.52 0.12 65);
   --fpo-warn-soft: oklch(0.95 0.06 85);
-  --fpo-gradient: linear-gradient(160deg, oklch(0.47 0.1 112) 0%, oklch(0.35 0.08 132) 52%, oklch(0.25 0.055 155) 100%);
-  --fpo-hero: linear-gradient(120deg, oklch(0.45 0.1 113) 0%, oklch(0.33 0.075 140) 60%, oklch(0.27 0.06 158) 100%);
+  --fpo-gradient: linear-gradient(
+    160deg,
+    oklch(0.47 0.1 112) 0%,
+    oklch(0.35 0.08 132) 52%,
+    oklch(0.25 0.055 155) 100%
+  );
+  --fpo-hero: linear-gradient(
+    120deg,
+    oklch(0.45 0.1 113) 0%,
+    oklch(0.33 0.075 140) 60%,
+    oklch(0.27 0.06 158) 100%
+  );
   background: var(--background);
   color: var(--foreground);
 }
@@ -353,12 +352,24 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 1.25rem;
-  box-shadow: 0 1px 2px oklch(0.3 0.04 115 / 0.05), 0 6px 20px -8px oklch(0.3 0.04 115 / 0.12);
+  box-shadow:
+    0 1px 2px oklch(0.3 0.04 115 / 0.05),
+    0 6px 20px -8px oklch(0.3 0.04 115 / 0.12);
 }
 @media print {
-  .fpo-rail, .fpo-topbar, .no-print { display: none !important; }
-  .fpo-main { padding: 0 !important; margin: 0 !important; }
-  .fpo-card { box-shadow: none; border-color: #ccc; }
+  .fpo-rail,
+  .fpo-topbar,
+  .no-print {
+    display: none !important;
+  }
+  .fpo-main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .fpo-card {
+    box-shadow: none;
+    border-color: #ccc;
+  }
 }
 
 /* FPO status colours are also used by shared badges on farmer/buyer/admin pages. */
@@ -369,4 +380,64 @@
   --fpo-good-soft: oklch(0.94 0.05 150);
   --fpo-warn: oklch(0.52 0.12 65);
   --fpo-warn-soft: oklch(0.95 0.06 85);
+}
+
+/* Admin console: warm neutral workspace, deep teal-green accent, charcoal rail. */
+.admin-portal {
+  --background: oklch(0.975 0.006 100);
+  --foreground: oklch(0.23 0.015 200);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.23 0.015 200);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.23 0.015 200);
+  --primary: oklch(0.38 0.06 172);
+  --primary-foreground: oklch(0.985 0.005 100);
+  --secondary: oklch(0.95 0.008 160);
+  --secondary-foreground: oklch(0.3 0.03 172);
+  --muted: oklch(0.95 0.008 160);
+  --muted-foreground: oklch(0.48 0.02 190);
+  --accent: oklch(0.92 0.035 168);
+  --accent-foreground: oklch(0.3 0.05 172);
+  --border: oklch(0.9 0.01 160);
+  --input: oklch(0.86 0.012 160);
+  --ring: oklch(0.38 0.06 172);
+  background: var(--background);
+  color: var(--foreground);
+}
+.admin-rail {
+  background: linear-gradient(180deg, oklch(0.26 0.018 195) 0%, oklch(0.2 0.012 210) 100%);
+  color: oklch(0.94 0.01 180);
+}
+
+/* Live mandi price ticker: slides left forever, pauses on hover. */
+@keyframes ticker-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  animation: ticker-slide 40s linear infinite;
+}
+.ticker-viewport:hover .ticker-track {
+  animation-play-state: paused;
+}
+.ticker-viewport {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 24px,
+    black calc(100% - 24px),
+    transparent
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+  .ticker-viewport {
+    overflow-x: auto;
+  }
 }

@@ -2,15 +2,7 @@
  * Shared domain models. UI code should import types from here (or `@/services`),
  * never from the mock data modules directly.
  */
-export type {
-  Buyer,
-  Coords,
-  Lot,
-  LotStatus,
-  Market,
-  Place,
-  Row,
-} from "@/lib/agri";
+export type { Buyer, Coords, Lot, LotStatus, Market, Place, Row } from "@/lib/agri";
 
 export type KycStatus = "verified" | "pending" | "unverified";
 
@@ -140,4 +132,3 @@ export type BotAnswer = {
     hinglish: string;
   };
 };
-

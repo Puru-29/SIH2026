@@ -29,54 +29,342 @@ export interface DetectionResult {
 const MARATHI_DISTINCTIVE_CHARS = /[ळऱॲऑ]/;
 
 const MARATHI_DEVANAGARI_WORDS = new Set([
-  "आहे", "आहेत", "नाही", "नाहीत", "होते", "होती", "होता", "होईल", "असेल", "असेलच",
-  "कधी", "कसा", "कशी", "कसे", "किती", "कुठे", "कोणता", "कोणती", "कोणते", "काय",
-  "करावे", "करावा", "करावी", "विकायचे", "विकावे", "पाहिजे", "द्या", "सांगा", "सांग",
-  "कांदा", "कांद्याचा", "कांद्याला", "कांद्याचे", "टोमॅटो", "सोयाबीन", "शेतकरी",
-  "बाजारभाव", "बाजार", "साठवणूक", "वाहतूक", "निव्वळ", "उत्पन्न", "दर", "पिकाचे",
-  "आठवडा", "आठवड्यात", "दिवस", "हप्ता", "भाडे", "नफा", "तोटा", "भाव", "घट", "वाढ",
-  "च्या", "मध्ये", "वर", "वरून", "आणि", "पण", "मुळे", "साठी", "कडे", "जवळ",
-  "थांबवा", "विका", "ठेवा", "करा", "मिळेल", "घेऊ", "पाहू"
+  "आहे",
+  "आहेत",
+  "नाही",
+  "नाहीत",
+  "होते",
+  "होती",
+  "होता",
+  "होईल",
+  "असेल",
+  "असेलच",
+  "कधी",
+  "कसा",
+  "कशी",
+  "कसे",
+  "किती",
+  "कुठे",
+  "कोणता",
+  "कोणती",
+  "कोणते",
+  "काय",
+  "करावे",
+  "करावा",
+  "करावी",
+  "विकायचे",
+  "विकावे",
+  "पाहिजे",
+  "द्या",
+  "सांगा",
+  "सांग",
+  "कांदा",
+  "कांद्याचा",
+  "कांद्याला",
+  "कांद्याचे",
+  "टोमॅटो",
+  "सोयाबीन",
+  "शेतकरी",
+  "बाजारभाव",
+  "बाजार",
+  "साठवणूक",
+  "वाहतूक",
+  "निव्वळ",
+  "उत्पन्न",
+  "दर",
+  "पिकाचे",
+  "आठवडा",
+  "आठवड्यात",
+  "दिवस",
+  "हप्ता",
+  "भाडे",
+  "नफा",
+  "तोटा",
+  "भाव",
+  "घट",
+  "वाढ",
+  "च्या",
+  "मध्ये",
+  "वर",
+  "वरून",
+  "आणि",
+  "पण",
+  "मुळे",
+  "साठी",
+  "कडे",
+  "जवळ",
+  "थांबवा",
+  "विका",
+  "ठेवा",
+  "करा",
+  "मिळेल",
+  "घेऊ",
+  "पाहू",
 ]);
 
 const HINDI_DEVANAGARI_WORDS = new Set([
-  "है", "हैं", "था", "थी", "थे", "होगा", "होगी", "होंगे", "होता", "होती",
-  "कब", "कहाँ", "कहा", "कैसे", "कैसा", "कैसी", "कितना", "कितने", "कितनी", "क्यों", "क्यो",
-  "कौनसा", "कौनसी", "कौन", "क्या", "किसको", "किधर", "बताओ", "बताइए", "बताएं",
-  "बेचना", "बेचें", "बेचो", "बिक्री", "रखें", "रखना", "रोकें", "चाहिए", "दीजिए", "करें", "करना",
-  "प्याज", "टमाटर", "गेहूं", "धान", "सरसों", "चना", "किसान", "मंडी", "भाव", "दाम",
-  "भंडारण", "भाड़ा", "नुकसान", "मुनाफा", "फायदा", "फसल", "शुद्ध", "हफ्ते", "दिन",
-  "में", "से", "को", "का", "की", "के", "पर", "और", "या", "लेकिन", "तो", "भी", "लिए",
-  "मिलेगा", "मिलेगी", "आएगा", "जाएगा", "सकता", "सकती", "सकते", "अभी", "आज", "कल"
+  "है",
+  "हैं",
+  "था",
+  "थी",
+  "थे",
+  "होगा",
+  "होगी",
+  "होंगे",
+  "होता",
+  "होती",
+  "कब",
+  "कहाँ",
+  "कहा",
+  "कैसे",
+  "कैसा",
+  "कैसी",
+  "कितना",
+  "कितने",
+  "कितनी",
+  "क्यों",
+  "क्यो",
+  "कौनसा",
+  "कौनसी",
+  "कौन",
+  "क्या",
+  "किसको",
+  "किधर",
+  "बताओ",
+  "बताइए",
+  "बताएं",
+  "बेचना",
+  "बेचें",
+  "बेचो",
+  "बिक्री",
+  "रखें",
+  "रखना",
+  "रोकें",
+  "चाहिए",
+  "दीजिए",
+  "करें",
+  "करना",
+  "प्याज",
+  "टमाटर",
+  "गेहूं",
+  "धान",
+  "सरसों",
+  "चना",
+  "किसान",
+  "मंडी",
+  "भाव",
+  "दाम",
+  "भंडारण",
+  "भाड़ा",
+  "नुकसान",
+  "मुनाफा",
+  "फायदा",
+  "फसल",
+  "शुद्ध",
+  "हफ्ते",
+  "दिन",
+  "में",
+  "से",
+  "को",
+  "का",
+  "की",
+  "के",
+  "पर",
+  "और",
+  "या",
+  "लेकिन",
+  "तो",
+  "भी",
+  "लिए",
+  "मिलेगा",
+  "मिलेगी",
+  "आएगा",
+  "जाएगा",
+  "सकता",
+  "सकती",
+  "सकते",
+  "अभी",
+  "आज",
+  "कल",
 ]);
 
 const HINGLISH_WORDS = new Set([
   // Question words
-  "kya", "kyu", "kyun", "kaise", "kaisa", "kaisi", "kab", "kaha", "kahan", "kidhar",
-  "kitna", "kitne", "kitni", "konsa", "kaunsa", "kon", "kisko", "kiska", "kis",
+  "kya",
+  "kyu",
+  "kyun",
+  "kaise",
+  "kaisa",
+  "kaisi",
+  "kab",
+  "kaha",
+  "kahan",
+  "kidhar",
+  "kitna",
+  "kitne",
+  "kitni",
+  "konsa",
+  "kaunsa",
+  "kon",
+  "kisko",
+  "kiska",
+  "kis",
   // Auxiliaries & Verbs
-  "hai", "hain", "h", "he", "tha", "thi", "the", "hoga", "hogi", "honge",
-  "kare", "karein", "karna", "karo", "karu", "kar",
-  "bechna", "bechu", "bechein", "becho", "bech", "bikega", "biko",
-  "rakhe", "rakhna", "rakhu", "roko", "roke", "rukna",
-  "batao", "bataiye", "bataye", "bata", "bolo", "boliye",
-  "chahiye", "chahta", "chal", "raha", "rahi", "rahe",
-  "mil", "milega", "milegi", "milta", "milti", "aayega", "jayega",
-  "sakta", "sakti", "sakte", "chahiye", "dekh", "dekho",
+  "hai",
+  "hain",
+  "h",
+  "he",
+  "tha",
+  "thi",
+  "the",
+  "hoga",
+  "hogi",
+  "honge",
+  "kare",
+  "karein",
+  "karna",
+  "karo",
+  "karu",
+  "kar",
+  "bechna",
+  "bechu",
+  "bechein",
+  "becho",
+  "bech",
+  "bikega",
+  "biko",
+  "rakhe",
+  "rakhna",
+  "rakhu",
+  "roko",
+  "roke",
+  "rukna",
+  "batao",
+  "bataiye",
+  "bataye",
+  "bata",
+  "bolo",
+  "boliye",
+  "chahiye",
+  "chahta",
+  "chal",
+  "raha",
+  "rahi",
+  "rahe",
+  "mil",
+  "milega",
+  "milegi",
+  "milta",
+  "milti",
+  "aayega",
+  "jayega",
+  "sakta",
+  "sakti",
+  "sakte",
+  "chahiye",
+  "dekh",
+  "dekho",
   // Pronouns, Particles, Prepositions
-  "ka", "ki", "ke", "ko", "se", "me", "mein", "par", "pe", "tak",
-  "aur", "ya", "toh", "to", "na", "bhi", "ab", "aaj", "kal", "parso",
-  "hum", "humara", "humi", "mera", "meri", "mere", "mujhe", "mujhko",
-  "aap", "aapka", "aapki", "aapke", "tum", "tumhara", "tera", "teri", "tere",
-  "ye", "yeh", "wo", "woh", "kuch", "koi", "sabse", "jyada", "zyada", "kam", "bohot", "bahut",
-  "accha", "achha", "sahi", "galat",
+  "ka",
+  "ki",
+  "ke",
+  "ko",
+  "se",
+  "me",
+  "mein",
+  "par",
+  "pe",
+  "tak",
+  "aur",
+  "ya",
+  "toh",
+  "to",
+  "na",
+  "bhi",
+  "ab",
+  "aaj",
+  "kal",
+  "parso",
+  "hum",
+  "humara",
+  "humi",
+  "mera",
+  "meri",
+  "mere",
+  "mujhe",
+  "mujhko",
+  "aap",
+  "aapka",
+  "aapki",
+  "aapke",
+  "tum",
+  "tumhara",
+  "tera",
+  "teri",
+  "tere",
+  "ye",
+  "yeh",
+  "wo",
+  "woh",
+  "kuch",
+  "koi",
+  "sabse",
+  "jyada",
+  "zyada",
+  "kam",
+  "bohot",
+  "bahut",
+  "accha",
+  "achha",
+  "sahi",
+  "galat",
   // Agri Romanized Vocabulary
-  "bhav", "bhaav", "bhavu", "mandi", "kisaan", "kisan", "kheti", "fasal", "daam", "dam",
-  "pyaj", "pyaaz", "kanda", "tamatar", "gehu", "chana", "soyabean", "soya", "lahsun", "lassan",
-  "batata", "aloo", "aalu", "anar", "dalim",
-  "kharcha", "faayda", "fayda", "munafa", "nuksan", "bhada", "dalali",
-  "vikaycha", "vikayche", "kadhi", "sheti", "shetkari", "bajarbhav", "gavha", "kiti",
-  "rate", "rates", "bav", "paisa", "paise", "rupaye"
+  "bhav",
+  "bhaav",
+  "bhavu",
+  "mandi",
+  "kisaan",
+  "kisan",
+  "kheti",
+  "fasal",
+  "daam",
+  "dam",
+  "pyaj",
+  "pyaaz",
+  "kanda",
+  "tamatar",
+  "gehu",
+  "chana",
+  "soyabean",
+  "soya",
+  "lahsun",
+  "lassan",
+  "batata",
+  "aloo",
+  "aalu",
+  "anar",
+  "dalim",
+  "kharcha",
+  "faayda",
+  "fayda",
+  "munafa",
+  "nuksan",
+  "bhada",
+  "dalali",
+  "vikaycha",
+  "vikayche",
+  "kadhi",
+  "sheti",
+  "shetkari",
+  "bajarbhav",
+  "gavha",
+  "kiti",
+  "rate",
+  "rates",
+  "bav",
+  "paisa",
+  "paise",
+  "rupaye",
 ]);
 
 const HINGLISH_PHRASES = [
@@ -104,26 +392,26 @@ const HINGLISH_PHRASES = [
   /daam\s+kya/i,
   /bhav\s+chal\s+raha/i,
   /kadhi\s+viku/i,
-  /kiti\s+bhav/i
+  /kiti\s+bhav/i,
 ];
 
 const SHORT_GREETINGS: Record<string, SupportedBotLang> = {
-  "namaste": "hi",
-  "namaskar": "mr",
-  "namaskaram": "hi",
-  "pranam": "hi",
+  namaste: "hi",
+  namaskar: "mr",
+  namaskaram: "hi",
+  pranam: "hi",
   "sat sri akaal": "pa",
   "sat siri akal": "pa",
-  "sasrikal": "pa",
+  sasrikal: "pa",
   "ram ram": "hi",
   "jai kisan": "hi",
   "kasa ahes": "mr",
   "kase ahat": "mr",
   "kaise ho": "hinglish",
   "kya haal hai": "hinglish",
-  "hello": "en",
-  "hi": "en",
-  "hey": "en"
+  hello: "en",
+  hi: "en",
+  hey: "en",
 };
 
 /* -------------------------------------------------------------------------- */
@@ -133,7 +421,7 @@ const SHORT_GREETINGS: Record<string, SupportedBotLang> = {
 export function detectLanguage(
   text: string,
   contextLang: SupportedBotLang = "en",
-  lastDetectedLang?: SupportedBotLang
+  lastDetectedLang?: SupportedBotLang,
 ): DetectionResult {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -141,7 +429,11 @@ export function detectLanguage(
       lang: contextLang,
       confidence: 1,
       script: "Latin",
-      details: { scores: { en: 0, hi: 0, mr: 0, pa: 0, hinglish: 0 }, matchedMarkers: [], isShortInput: true }
+      details: {
+        scores: { en: 0, hi: 0, mr: 0, pa: 0, hinglish: 0 },
+        matchedMarkers: [],
+        isShortInput: true,
+      },
     };
   }
 
@@ -153,12 +445,13 @@ export function detectLanguage(
     return {
       lang,
       confidence: 0.95,
-      script: lang === "pa" ? "Gurmukhi" : (lang === "en" || lang === "hinglish") ? "Latin" : "Devanagari",
+      script:
+        lang === "pa" ? "Gurmukhi" : lang === "en" || lang === "hinglish" ? "Latin" : "Devanagari",
       details: {
         scores: { en: 0, hi: 0, mr: 0, pa: 0, hinglish: 0, [lang]: 10 },
         matchedMarkers: [normalized],
-        isShortInput: true
-      }
+        isShortInput: true,
+      },
     };
   }
 
@@ -169,9 +462,9 @@ export function detectLanguage(
 
   for (let i = 0; i < trimmed.length; i++) {
     const code = trimmed.charCodeAt(i);
-    if (code >= 0x0A00 && code <= 0x0A7F) {
+    if (code >= 0x0a00 && code <= 0x0a7f) {
       gurmukhiCount++;
-    } else if (code >= 0x0900 && code <= 0x097F) {
+    } else if (code >= 0x0900 && code <= 0x097f) {
       devanagariCount++;
     } else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
       latinCount++;
@@ -189,8 +482,8 @@ export function detectLanguage(
       details: {
         scores: { en: 0, hi: 0, mr: 0, pa: gurmukhiCount, hinglish: 0 },
         matchedMarkers: ["Gurmukhi script characters"],
-        isShortInput: trimmed.split(/\s+/).length <= 2
-      }
+        isShortInput: trimmed.split(/\s+/).length <= 2,
+      },
     };
   }
 
@@ -248,8 +541,8 @@ export function detectLanguage(
       details: {
         scores: { en: 0, hi: hiScore, mr: mrScore, pa: 0, hinglish: 0 },
         matchedMarkers,
-        isShortInput: tokens.length <= 2
-      }
+        isShortInput: tokens.length <= 2,
+      },
     };
   }
 
@@ -258,7 +551,21 @@ export function detectLanguage(
   const matchedMarkers: string[] = [];
 
   // Check for very short ambiguous English words ("ok", "thanks", "yes", "no", "cool", "fine")
-  const isGenericShort = tokens.length <= 2 && ["ok", "okay", "thanks", "thank you", "thx", "yes", "no", "done", "fine", "cool", "sure"].includes(normalized);
+  const isGenericShort =
+    tokens.length <= 2 &&
+    [
+      "ok",
+      "okay",
+      "thanks",
+      "thank you",
+      "thx",
+      "yes",
+      "no",
+      "done",
+      "fine",
+      "cool",
+      "sure",
+    ].includes(normalized);
   if (isGenericShort) {
     const fallback = lastDetectedLang || contextLang || "en";
     return {
@@ -268,13 +575,13 @@ export function detectLanguage(
       details: {
         scores: { en: 1, hi: 0, mr: 0, pa: 0, hinglish: 0 },
         matchedMarkers: ["short-generic-fallback"],
-        isShortInput: true
-      }
+        isShortInput: true,
+      },
     };
   }
 
   let hinglishScore = 0;
-  let englishScore = 0;
+  const englishScore = 0;
 
   // Check phrase patterns
   for (const regex of HINGLISH_PHRASES) {
@@ -298,7 +605,11 @@ export function detectLanguage(
   let chosenLang: SupportedBotLang = "en";
   let confidence = 0.85;
 
-  if (hinglishScore >= 2.5 || (tokens.length <= 4 && hinglishScore >= 1.5) || hinglishDensity >= 0.4) {
+  if (
+    hinglishScore >= 2.5 ||
+    (tokens.length <= 4 && hinglishScore >= 1.5) ||
+    hinglishDensity >= 0.4
+  ) {
     chosenLang = "hinglish";
     confidence = Math.min(0.98, 0.7 + hinglishScore * 0.05);
   } else {
@@ -316,19 +627,22 @@ export function detectLanguage(
         hi: 0,
         mr: 0,
         pa: 0,
-        hinglish: hinglishScore
+        hinglish: hinglishScore,
       },
       matchedMarkers,
-      isShortInput: tokens.length <= 2
-    }
+      isShortInput: tokens.length <= 2,
+    },
   };
 }
 
 /** Human-readable badge text and speech language map */
-export const BOT_LANG_INFO: Record<SupportedBotLang, { name: string; native: string; speechLocale: string }> = {
+export const BOT_LANG_INFO: Record<
+  SupportedBotLang,
+  { name: string; native: string; speechLocale: string }
+> = {
   en: { name: "English", native: "English", speechLocale: "en-IN" },
   hi: { name: "Hindi", native: "हिंदी", speechLocale: "hi-IN" },
   mr: { name: "Marathi", native: "मराठी", speechLocale: "mr-IN" },
   pa: { name: "Punjabi", native: "ਪੰਜਾਬੀ", speechLocale: "pa-IN" },
-  hinglish: { name: "Hinglish", native: "Hinglish", speechLocale: "hi-IN" }
+  hinglish: { name: "Hinglish", native: "Hinglish", speechLocale: "hi-IN" },
 };

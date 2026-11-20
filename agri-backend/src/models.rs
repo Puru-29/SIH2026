@@ -11,6 +11,7 @@ pub struct User {
     pub phone_number: String,
     pub created_at: String,
     pub pin_hash: Option<String>,
+    pub status: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -22,6 +23,15 @@ pub struct RegisterFarmerRequest {
     #[validate(regex(path = *PIN_REGEX))]
     pub pin: String,
     pub role: String,
+    // FPO registration only.
+    #[validate(length(max = 60))]
+    pub registration_no: Option<String>,
+    #[validate(length(max = 80))]
+    pub district: Option<String>,
+    #[validate(length(max = 80))]
+    pub state: Option<String>,
+    #[validate(length(max = 300))]
+    pub primary_crops: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -38,27 +48,16 @@ pub struct AuthResponse {
     pub user_id: i64,
     pub role: String,
     pub name: String,
+    pub status: String,
+    /// Bearer token for `Authorization: Bearer <token>`. Absent on /me.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 static PHONE_REGEX: once_cell::sync::Lazy<regex::Regex> =
     once_cell::sync::Lazy::new(|| regex::Regex::new(r"^[0-9]{10}$").expect("valid phone regex"));
 static PIN_REGEX: once_cell::sync::Lazy<regex::Regex> =
     once_cell::sync::Lazy::new(|| regex::Regex::new(r"^[0-9]{4}$").expect("valid PIN regex"));
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Farmer {
-    pub id: i64,
-    pub location: String,
-    pub urgency_level: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Buyer {
-    pub id: i64,
-    pub trust_score: f64,
-    // SQLite booleans are 0/1 integers.
-    pub is_verified: i64,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct Crop {
@@ -74,7 +73,7 @@ pub struct Market {
     pub location: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct LiveMandiPrice {
     pub id: String,
     pub crop_name: String,
@@ -132,6 +131,9 @@ pub struct BuyerPrice {
     pub delivery_location: String,
     pub required_by: String,
     pub status: String,
+    /// Open lots of the same crop (only filled on the buyer's own list).
+    #[sqlx(default)]
+    pub matching_lots: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -142,32 +144,6 @@ pub struct Lot {
     pub quantity_quintals: f64,
     pub expected_quality: String,
     pub status: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Offer {
-    pub id: i64,
-    pub lot_id: i64,
-    pub buyer_id: i64,
-    pub price_offered: f64,
-    pub status: String,
-    pub created_by_role: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Transaction {
-    pub id: i64,
-    pub offer_id: i64,
-    pub final_price: f64,
-    pub status: String,
-    pub completed_at: String,
-    pub crop_name: String,
-    pub quantity_quintals: f64,
-    pub buyer_name: String,
-    pub farmer_name: String,
-    pub lot_id: i64,
-    // Who accepted the offer that created this transaction: "farmer" or "buyer".
-    pub accepted_by_role: String,
 }
 
 // API request/response types
@@ -259,15 +235,6 @@ pub struct CreateLotRequest {
     pub quantity_quintals: f64,
     #[validate(length(min = 1))]
     pub expected_quality: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct CreateOfferRequest {
-    #[validate(range(min = 1))]
-    pub lot_id: i64,
-    #[validate(range(min = 0.01))]
-    pub price_offered: f64,
-    pub buyer_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

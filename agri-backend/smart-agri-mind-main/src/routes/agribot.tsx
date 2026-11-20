@@ -79,9 +79,28 @@ function loadLangPrefs(): { input: LangChoice; output: LangChoice } {
 }
 
 // Web Speech API interface definitions
+interface SpeechResultEvent {
+  resultIndex: number;
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
+}
+interface SpeechErrorEvent {
+  error: string;
+}
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechResultEvent) => void) | null;
+  onerror: ((event: SpeechErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 interface IWindowSpeechRecognition extends Window {
-  SpeechRecognition?: any;
-  webkitSpeechRecognition?: any;
+  SpeechRecognition?: SpeechRecognitionCtor;
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
 }
 
 export function AgriBot() {
@@ -96,7 +115,7 @@ export function AgriBot() {
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   // Input language: what the farmer types/speaks in ("auto" = detect per message).
   // Output language: what AgriBot replies in ("auto" = same as the question).
@@ -233,23 +252,25 @@ export function AgriBot() {
         });
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechResultEvent) => {
         let current = "";
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            const finalSpeech = event.results[i][0].transcript;
+          const result = event.results[i];
+          if (!result) continue;
+          if (result.isFinal) {
+            const finalSpeech = result[0].transcript;
             setIsListening(false);
             setInterimTranscript("");
             ask(finalSpeech);
             return;
           } else {
-            current += event.results[i][0].transcript;
+            current += result[0].transcript;
           }
         }
         setInterimTranscript(current);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: SpeechErrorEvent) => {
         setIsListening(false);
         setInterimTranscript("");
         if (event.error === "not-allowed" || event.error === "permission-denied") {

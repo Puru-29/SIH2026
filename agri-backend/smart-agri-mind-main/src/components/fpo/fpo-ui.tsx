@@ -201,6 +201,11 @@ const STATUS: Record<
   in_transit: { label: "In transit", tone: "olive" },
   delivered: { label: "Delivered", tone: "green" },
   planned: { label: "Planned", tone: "gray" },
+  draft: { label: "Draft", tone: "gray" },
+  collecting: { label: "Collecting", tone: "olive" },
+  locked: { label: "Locked", tone: "amber" },
+  listed: { label: "Listed for sale", tone: "olive" },
+  settled: { label: "Settled", tone: "green" },
   dispatched: { label: "Dispatched", tone: "olive" },
   cancelled: { label: "Cancelled", tone: "gray" },
   submitted: { label: "Submitted", tone: "amber" },
@@ -681,11 +686,20 @@ export function Meter({
 }
 
 /** Responsive table wrapper: scrolls sideways on small screens. */
-export function Table({ head, children }: { head: string[]; children: ReactNode }) {
+export function Table({
+  head,
+  children,
+  compact,
+}: {
+  head: string[];
+  children: ReactNode;
+  /** Small tables: no minimum width, so they fit narrow cards. */
+  compact?: boolean | undefined;
+}) {
   const { t } = useI18n();
   return (
     <div className="-mx-1 overflow-x-auto">
-      <table className="w-full min-w-[640px] text-left text-[0.95rem]">
+      <table className={cn("w-full text-left text-[0.95rem]", !compact && "min-w-[640px]")}>
         <thead>
           <tr className="border-b border-border text-sm text-muted-foreground">
             {head.map((h, i) => (

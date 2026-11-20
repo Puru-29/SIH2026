@@ -1,16 +1,20 @@
+mod admin;
 mod auth;
 mod db;
 mod errors;
 mod fpo;
 mod handlers;
+mod market;
+mod migrate_fix;
 mod models;
 mod seed;
+mod seed_demo;
 mod services;
 
 use axum::response::Redirect;
 use axum::{
     http::{header, HeaderValue, Method},
-    routing::{delete, get, post},
+    routing::{get, post},
     Router,
 };
 use dotenvy::dotenv;
@@ -52,7 +56,12 @@ async fn main() {
         .expect("Failed to create database pool. Check DATABASE_URL and file permissions.");
 
     tracing::info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
+    let migrator = sqlx::migrate!("./migrations");
+    // A git checkout can switch migration files between CRLF and LF; accept that.
+    migrate_fix::align_line_endings(&pool, &migrator)
+        .await
+        .expect("Failed to check migration checksums");
+    migrator
         .run(&pool)
         .await
         .expect("Failed to run migrations. Ensure migrations/ directory exists.");
@@ -63,6 +72,12 @@ async fn main() {
     }
     if let Err(e) = seed::ensure_admin(&pool).await {
         tracing::error!("Failed to create admin account: {}", e);
+    }
+    if let Err(e) = seed::ensure_demo_accounts(&pool).await {
+        tracing::error!("Failed to prepare demo accounts: {}", e);
+    }
+    if let Err(e) = seed_demo::ensure_demo_data(&pool).await {
+        tracing::error!("Failed to add demo data: {}", e);
     }
 
     let frontend_url =
@@ -80,11 +95,7 @@ async fn main() {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers([
-            header::AUTHORIZATION,
-            header::CONTENT_TYPE,
-            header::HeaderName::from_static("x-user-id"),
-        ]);
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
     let app = Router::new()
         .route(
@@ -94,25 +105,23 @@ async fn main() {
         .route("/health", get(handlers::get_health))
         .route("/api/auth/register", post(handlers::register_farmer))
         .route("/api/auth/login", post(handlers::login_farmer))
+        .route("/api/auth/logout", post(handlers::logout))
+        .route("/api/auth/me", get(handlers::me))
         .route(
             "/api/crops",
             get(handlers::get_crops).post(handlers::create_crop),
         )
         .route(
             "/api/lots",
-            get(handlers::get_lots).post(handlers::create_lot),
+            get(market::list_lots).post(handlers::create_lot),
         )
         .route(
             "/api/offers",
-            get(handlers::get_offers).post(handlers::create_offer),
+            get(market::list_offers).post(market::create_offer),
         )
         .route(
             "/api/buyer-demands",
             get(handlers::get_buyer_demands).post(handlers::create_buyer_demand),
-        )
-        .route(
-            "/api/buyer-demands/:id",
-            delete(handlers::delete_buyer_demand),
         )
         .route("/api/mandi/prices", get(handlers::get_live_mandi_prices))
         .route("/api/mandi/states", get(handlers::get_mandi_states))
@@ -133,10 +142,9 @@ async fn main() {
             "/api/lots/:id/matching-buyers",
             get(handlers::get_matching_buyers),
         )
-        .route("/api/offers/:id/accept", post(handlers::accept_offer))
-        .route("/api/transactions/:id", get(handlers::get_transaction))
-        .route("/api/transactions", get(handlers::get_transactions))
+        .merge(market::routes())
         .merge(fpo::routes())
+        .merge(admin::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(pool);

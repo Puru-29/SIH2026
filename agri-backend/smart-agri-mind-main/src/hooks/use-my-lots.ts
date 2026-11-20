@@ -59,8 +59,10 @@ export function useMyLots() {
     const prices = pricesQuery.data ?? [];
     return (lotsQuery.data ?? []).map((l) => {
       const crop = crops.get(l.crop_id);
-      const cropName = crop?.name ?? `Crop #${l.crop_id}`;
+      const cropName = l.crop_name ?? crop?.name ?? `Crop #${l.crop_id}`;
+      const perishability = l.perishability_days ?? crop?.perishability_days;
       const live = livePricePerKg(cropName, prices);
+      const display = l.display_status ?? (l.status === "open" ? "open" : l.status);
       return {
         id: `LOT-${l.id}`,
         backendId: l.id,
@@ -69,23 +71,57 @@ export function useMyLots() {
         emoji: cropEmoji(cropName),
         grade: l.expected_quality,
         quantity: Math.round(l.quantity_quintals * 100),
+        quantityQuintals: l.quantity_quintals,
         price: live ?? fallbackPricePerKg(cropName),
         priceSource: live !== undefined ? "live" : "estimate",
         storagePerKg: 0.5,
         harvest: "Registered",
-        status: statusFromPerishability(crop?.perishability_days),
-        stateLabel: l.status === "sold" ? "Sold" : "Open",
+        status: statusFromPerishability(perishability),
+        stateLabel: STATE_LABEL[display] ?? "Open",
         confidence: live !== undefined ? 85 : 60,
         place: location,
+        backendStatus: l.status,
+        displayStatus: display as Lot["displayStatus"],
+        pendingOffers: l.pending_offers ?? 0,
+        bestOffer: l.best_offer ?? null,
+        ...(perishability !== undefined && { perishabilityDays: perishability }),
+        daysListed: l.days_listed ?? 0,
+        cancelReason: l.cancel_reason ?? null,
       } satisfies Lot;
     });
   }, [lotsQuery.data, cropsQuery.data, pricesQuery.data, location]);
 
   return {
     lots,
+    /** Lots still on the market (open, with or without offers). */
+    openLots: lots.filter((l) => l.backendStatus === "open"),
     isLoading: lotsQuery.isLoading || cropsQuery.isLoading,
     error: lotsQuery.error ?? cropsQuery.error,
   };
+}
+
+const STATE_LABEL: Record<string, string> = {
+  open: "Open",
+  offer_received: "Offer received",
+  sold: "Sold",
+  withdrawn: "Withdrawn",
+  cancelled: "Cancelled",
+};
+
+/**
+ * The lot to act on first: the open lot with the least shelf life left
+ * (crop perishability minus days since listing), then the largest.
+ */
+export function pickHeroLot(lots: Lot[]): Lot | undefined {
+  return rankOpenLots(lots)[0];
+}
+
+/** Open lots, most urgent first (same order as `pickHeroLot`). */
+export function rankOpenLots(lots: Lot[]): Lot[] {
+  const left = (l: Lot) => (l.perishabilityDays ?? 180) - (l.daysListed ?? 0);
+  return lots
+    .filter((l) => l.backendStatus === "open")
+    .sort((a, b) => left(a) - left(b) || b.quantity - a.quantity);
 }
 
 /**

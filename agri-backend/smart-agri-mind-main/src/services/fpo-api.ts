@@ -23,6 +23,9 @@ export type FpoOrg = {
   verified: number;
   verified_at: string | null;
   created_at: string | null;
+  verified_by: number | null;
+  primary_crops: string;
+  rejection_reason: string | null;
 };
 
 export type FpoMember = {
@@ -48,6 +51,8 @@ export type MemberInput = {
   land_acres: number;
   crops: string;
   status?: "active" | "inactive";
+  /** Create an AgriSense farmer login with this PIN (only if the farmer has none). */
+  create_login_pin?: string | undefined;
 };
 
 export type Contribution = {
@@ -64,6 +69,14 @@ export type Contribution = {
   lot_id: number | null;
   lot_code: string | null;
   created_at: string | null;
+  pool_id: number | null;
+  pledged_quintals: number | null;
+  received_quintals: number | null;
+  assessed_grade: "A" | "B" | "C" | null;
+  source_lot_id: number | null;
+  pledged_by: "fpo" | "farmer";
+  rejection_note: string;
+  received_at: string | null;
 };
 
 export type FpoLot = {
@@ -230,9 +243,14 @@ export type Distribution = {
     member_id: number;
     member_name: string;
     contributed_quintals: number;
+    grade: "A" | "B" | "C" | null;
+    grade_factor: number;
     share_pct: number;
     quantity_quintals: number;
     gross: number;
+    freight_share: number;
+    storage_handling_share: number;
+    commission: number;
     deductions: number;
     net: number;
   }[];
@@ -444,6 +462,104 @@ export type FpoDashboard = {
   recent_sales: FpoSale[];
   upcoming_shipments: Shipment[];
   notifications: FpoNotification[];
+  pools: Pool[];
+  demand_highlights: DemandHighlight[];
+};
+
+export type PoolStatus = "draft" | "collecting" | "locked" | "listed" | "cancelled";
+export type PoolEffectiveStatus = PoolStatus | "sold" | "settled";
+
+export type Pool = {
+  id: number;
+  fpo_id: number;
+  fpo_name: string;
+  crop_id: number;
+  crop_name: string;
+  target_grade: "A" | "B" | "C" | null;
+  target_quantity_quintals: number;
+  collection_center: string;
+  collection_deadline: string;
+  status: PoolStatus;
+  effective_status: PoolEffectiveStatus;
+  lot_id: number | null;
+  lot_code: string | null;
+  pledged_quintals: number;
+  received_quintals: number;
+  contributors: number;
+  pending_pledges: number;
+  rejected: number;
+  created_at: string | null;
+};
+
+export type PoolDetail = {
+  pool: Pool;
+  contributions: Contribution[];
+  grade_breakdown: { grade: string; quintals: number }[];
+  lot: FpoLot | null;
+  offers: FpoOffer[];
+  sales: FpoSale[];
+  payouts: FpoPayout[];
+};
+
+export type PoolAction = "open" | "lock" | "reopen" | "list" | "cancel";
+
+export type JoinRequest = {
+  id: number;
+  farmer_user_id: number;
+  name: string;
+  phone: string;
+  location: string;
+  message: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string | null;
+  decided_at: string | null;
+};
+
+export type Announcement = {
+  id: number;
+  author_name: string;
+  audience: "fpo_members" | "all_farmers" | "all_buyers" | "all_fpos" | "all";
+  fpo_id: number | null;
+  fpo_name: string | null;
+  district: string | null;
+  title: string;
+  body: string;
+  created_at: string | null;
+};
+
+export type FpoDirectoryEntry = {
+  id: number;
+  name: string;
+  district: string;
+  state: string;
+  primary_crops: string;
+  members: number;
+  request_status: "pending" | "approved" | "rejected" | null;
+  is_member: boolean;
+};
+
+export type MyPools = {
+  pools: Pool[];
+  open_lots: {
+    id: number;
+    crop_id: number;
+    crop_name: string;
+    quantity_quintals: number;
+    quality: string;
+  }[];
+};
+
+export type DemandHighlight = {
+  buyer: string;
+  crop: string;
+  quantity_quintals: number;
+  max_price: number;
+  quality: string;
+  location: string;
+  required_by: string;
+  pledged_quintals: number;
+  in_stock_quintals: number;
+  can_cover: boolean;
 };
 
 export type ReportKind =
@@ -522,7 +638,17 @@ const qs = (params: Record<string, string | undefined>) => {
 export const fpoApi = {
   org: () => request<FpoOrg>("/api/fpo/org"),
   updateOrg: (
-    b: Omit<FpoOrg, "id" | "manager_user_id" | "verified" | "verified_at" | "created_at">,
+    b: Omit<
+      FpoOrg,
+      | "id"
+      | "manager_user_id"
+      | "verified"
+      | "verified_at"
+      | "created_at"
+      | "verified_by"
+      | "primary_crops"
+      | "rejection_reason"
+    > & { primary_crops?: string },
   ) => send<FpoOrg>("PUT", "/api/fpo/org", b),
   dashboard: () => request<FpoDashboard>("/api/fpo/dashboard"),
   notifications: () => request<FpoNotification[]>("/api/fpo/notifications"),
@@ -657,7 +783,62 @@ export const fpoApi = {
   report: (kind: ReportKind, from?: string, to?: string) =>
     request<Report>(`/api/fpo/reports/${kind}${qs({ from, to })}`),
 
+  // pools
+  pools: () => request<Pool[]>("/api/fpo/pools"),
+  pool: (id: number) => request<PoolDetail>(`/api/fpo/pools/${id}`),
+  createPool: (b: {
+    crop_name: string;
+    target_grade: "A" | "B" | "C" | "";
+    target_quantity_quintals: number;
+    collection_center: string;
+    collection_deadline: string;
+    start_collecting: boolean;
+  }) => send<Pool>("POST", "/api/fpo/pools", b),
+  poolAction: (id: number, action: PoolAction) =>
+    send<Pool>("POST", `/api/fpo/pools/${id}/action/${action}`),
+  addPledge: (poolId: number, b: { member_id: number; quantity_quintals: number }) =>
+    send<{ id: number }>("POST", `/api/fpo/pools/${poolId}/contributions`, b),
+  intake: (
+    poolId: number,
+    contributionId: number,
+    b:
+      | {
+          action: "receive";
+          received_quintals: number;
+          assessed_grade: "A" | "B" | "C";
+          note?: string;
+        }
+      | { action: "reject"; note: string },
+  ) =>
+    send<{ id: number }>(
+      "POST",
+      `/api/fpo/pools/${poolId}/contributions/${contributionId}/intake`,
+      b,
+    ),
+
+  // members joining
+  joinRequests: () => request<JoinRequest[]>("/api/fpo/join-requests"),
+  decideJoin: (id: number, action: "approve" | "reject") =>
+    send<{ id: number; status: string }>("POST", `/api/fpo/join-requests/${id}/${action}`),
+
+  // announcements
+  fpoAnnouncements: () => request<Announcement[]>("/api/fpo/announcements"),
+  postAnnouncement: (b: { title: string; body: string }) =>
+    send<{ id: number }>("POST", "/api/fpo/announcements", b),
+  myAnnouncements: () => request<Announcement[]>("/api/announcements"),
+
   // farmer
+  findFpos: (q?: string, district?: string) =>
+    request<FpoDirectoryEntry[]>(`/api/fpos${qs({ q, district })}`),
+  requestToJoin: (fpoId: number, message: string) =>
+    send<{ id: number }>("POST", `/api/fpos/${fpoId}/join-requests`, { message }),
+  myPools: () => request<MyPools>("/api/fpo/my/pools"),
+  pledge: (poolId: number, b: { quantity_quintals: number; source_lot_id?: number | undefined }) =>
+    send<{ id: number; quantity_quintals: number }>(
+      "POST",
+      `/api/fpo/my/pools/${poolId}/pledge`,
+      b,
+    ),
   my: () => request<MyFpo>("/api/fpo/my"),
   myGrievance: (b: GrievanceInput) => send<{ id: number }>("POST", "/api/fpo/my/grievances", b),
 

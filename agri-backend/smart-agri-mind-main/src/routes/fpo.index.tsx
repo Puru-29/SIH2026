@@ -43,6 +43,7 @@ import {
   tonnes,
 } from "@/components/fpo/fpo-ui";
 import { cn } from "@/lib/utils";
+import { PoolCard } from "@/components/fpo/pool-ui";
 
 export const Route = createFileRoute("/fpo/")({
   component: FpoDashboard,
@@ -126,6 +127,64 @@ function FpoDashboard() {
           </div>
         </div>
       </section>
+
+      {data.demand_highlights.length > 0 && (
+        <Card
+          title="Buyers are asking for"
+          subtitle="Open buyer requirements for crops you pool or stock."
+        >
+          <ul className="grid gap-3 md:grid-cols-2">
+            {data.demand_highlights.map((h, i) => (
+              <li
+                key={i}
+                className={cn(
+                  "rounded-2xl border p-4",
+                  h.can_cover
+                    ? "border-[var(--fpo-good)]/40 bg-[var(--fpo-good-soft)]"
+                    : "border-border",
+                )}
+              >
+                <p className="text-base">
+                  <strong>{h.buyer}</strong> {t("wants")}{" "}
+                  <strong>{quintals(h.quantity_quintals)}</strong> {h.quality} {t(h.crop)} {t("in")}{" "}
+                  {h.location} {t("by")} {shortDate(h.required_by)}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {t("up to")} {rupees(h.max_price)}/q
+                  </span>
+                </p>
+                <p className="mt-1 text-sm">
+                  {t("You have")} <strong>{quintals(h.pledged_quintals)}</strong> {t("pledged")}{" "}
+                  {t("and")} <strong>{quintals(h.in_stock_quintals)}</strong> {t("in stock")}.{" "}
+                  {h.can_cover
+                    ? t("Enough to supply this buyer.")
+                    : t("Collect more to supply this buyer.")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {data.pools.length > 0 && (
+        <Card
+          title="Active pools"
+          action={
+            <Link
+              to="/fpo/aggregation"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              {t("View all")}
+            </Link>
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            {data.pools.slice(0, 4).map((p) => (
+              <PoolCard key={p.id} pool={p} />
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Stat

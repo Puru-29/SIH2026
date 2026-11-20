@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Calculator, FileText, IndianRupee, Receipt, Wallet } from "lucide-react";
+import { Calculator, Download, FileText, IndianRupee, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
 import { openProtectedFile } from "@/services/api-client";
@@ -8,6 +8,8 @@ import {
   documentPath,
   fpoApi,
   type FpoPayment,
+  type FpoPayout,
+  type FpoSale,
   type PaymentStatus,
   type Upload,
 } from "@/services/fpo-api";
@@ -283,7 +285,17 @@ function SaleModal({ id, onClose }: { id: number; onClose: () => void }) {
 
           {detail.data.payouts.length > 0 && (
             <section>
-              <h3 className="mb-2 font-serif text-xl">{t("Farmer payments")}</h3>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-serif text-xl">{t("Farmer payments")}</h3>
+                <Btn
+                  size="sm"
+                  variant="outline"
+                  icon={<Download className="h-4 w-4" />}
+                  onClick={() => downloadPayoutStatement(sale, detail.data!.payouts)}
+                >
+                  {t("Payout statement (CSV)")}
+                </Btn>
+              </div>
               <Table head={["Farmer", "Share", "Gross", "Deductions", "Net payable", "Status", ""]}>
                 {detail.data.payouts.map((p) => (
                   <tr key={p.id}>
@@ -465,19 +477,41 @@ function Distribution({ saleId, saved }: { saleId: number; saved: boolean }) {
                 {rupees(preview.data.expenses.fpo_service_charge)})
               </p>
               <Table
-                head={["Farmer", "Contributed", "Share", "Gross", "Deductions", "Net payable"]}
+                head={[
+                  "Farmer",
+                  "Contributed",
+                  "Grade",
+                  "Gross",
+                  "Freight",
+                  "Storage & handling",
+                  "FPO charge",
+                  "Net payable",
+                ]}
               >
                 {preview.data.rows.map((r) => (
                   <tr key={r.contribution_id}>
                     <td className="font-medium">{r.member_name}</td>
-                    <td className="tabular-nums">{quintals(r.contributed_quintals)}</td>
-                    <td className="tabular-nums">{r.share_pct}%</td>
+                    <td className="tabular-nums">
+                      {quintals(r.contributed_quintals)}{" "}
+                      <span className="text-xs text-muted-foreground">({r.share_pct}%)</span>
+                    </td>
+                    <td className="tabular-nums">
+                      {r.grade ?? "—"}{" "}
+                      <span className="text-xs text-muted-foreground">×{r.grade_factor}</span>
+                    </td>
                     <td className="tabular-nums">{rupees(r.gross)}</td>
-                    <td className="tabular-nums">−{rupees(r.deductions)}</td>
+                    <td className="tabular-nums">−{rupees(r.freight_share)}</td>
+                    <td className="tabular-nums">−{rupees(r.storage_handling_share)}</td>
+                    <td className="tabular-nums">−{rupees(r.commission)}</td>
                     <td className="font-semibold tabular-nums">{rupees(r.net)}</td>
                   </tr>
                 ))}
               </Table>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t(
+                  "Gross is the sale amount shared by quantity × grade (A ×1, B ×0.95, C ×0.85). Freight, storage and handling are shared by quantity. The FPO charge is a % of each farmer's gross.",
+                )}
+              </p>
               <div className="mt-3 flex justify-end">
                 <ConfirmButton
                   label="Save farmer payments"
@@ -657,4 +691,44 @@ function PayoutModal({
       </form>
     </Modal>
   );
+}
+
+/** CSV payout statement for one sale (opens in Excel; UTF-8 with BOM for ₹ and names). */
+function downloadPayoutStatement(sale: FpoSale, payouts: FpoPayout[]) {
+  const esc = (v: unknown) => {
+    const t = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const rows: unknown[][] = [
+    ["Lot ID", sale.lot_code, "Buyer", sale.buyer_name, "Sale amount", sale.amount],
+    [],
+    [
+      "Farmer",
+      "Quantity (q)",
+      "Gross (₹)",
+      "Deductions (₹)",
+      "Net (₹)",
+      "Status",
+      "Reference",
+      "Paid on",
+    ],
+    ...payouts.map((p) => [
+      p.member_name,
+      p.quantity_quintals,
+      p.gross,
+      p.deductions,
+      p.net,
+      p.status,
+      p.reference ?? "",
+      p.paid_on ?? "",
+    ]),
+  ];
+  const blob = new Blob(["\ufeff" + rows.map((r) => r.map(esc).join(",")).join("\r\n")], {
+    type: "text/csv;charset=utf-8",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `payouts_${sale.lot_code ?? sale.id}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }

@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LineChart,
   LogOut,
+  Megaphone,
   Menu,
   MessageSquareWarning,
   PanelLeftClose,
@@ -22,9 +23,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { clearUser, getSession } from "@/services/session";
+import { logout } from "@/services/api-client";
+import { useRequireRole } from "@/hooks/use-require-role";
+import type { FpoOrg } from "@/services/fpo-api";
 import { fpoApi } from "@/services/fpo-api";
-import { useFpoQuery } from "@/hooks/use-fpo";
+import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import { VerifiedBadge } from "./fpo-ui";
 
 export const FPO_NAV = [
@@ -38,6 +41,7 @@ export const FPO_NAV = [
   { to: "/fpo/transactions", label: "Transactions", icon: Wallet },
   { to: "/fpo/market", label: "Market Intelligence", icon: LineChart },
   { to: "/fpo/grievances", label: "Grievances", icon: MessageSquareWarning },
+  { to: "/fpo/announcements", label: "Announcements", icon: Megaphone },
   { to: "/fpo/reports", label: "Reports", icon: BarChart3 },
   { to: "/fpo/settings", label: "Settings", icon: Settings },
 ] as const;
@@ -78,16 +82,12 @@ export function FpoLayout() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const session = getSession();
+  const session = useRequireRole(["fpo"]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
-  const isManager = session?.role === "fpo";
-
-  useEffect(() => {
-    if (!session) void navigate({ to: "/auth" });
-    else if (!isManager) void navigate({ to: "/dashboard" });
-  }, [session, isManager, navigate]);
+  const isManager = session !== null;
+  const pending = session?.status === "pending";
 
   useEffect(() => {
     try {
@@ -98,10 +98,16 @@ export function FpoLayout() {
   }, []);
 
   const org = useFpoQuery(["org"], fpoApi.org, isManager);
-  const notes = useFpoQuery(["notifications"], fpoApi.notifications, isManager);
+  const notes = useFpoQuery(["notifications"], fpoApi.notifications, isManager && !pending);
   const count = notes.data?.length ?? 0;
 
-  if (!session || !isManager) return null;
+  const signOut = async () => {
+    await logout();
+    void navigate({ to: "/auth" });
+  };
+
+  if (!session) return null;
+  if (pending) return <PendingVerification org={org.data} onSignOut={signOut} />;
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -270,10 +276,7 @@ export function FpoLayout() {
               {(org.data?.name || session.name || "F").trim().charAt(0)}
             </span>
             <button
-              onClick={() => {
-                clearUser();
-                void navigate({ to: "/auth" });
-              }}
+              onClick={() => void signOut()}
               className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
               aria-label={t("Sign out")}
               title={t("Sign out")}
@@ -285,6 +288,107 @@ export function FpoLayout() {
         <main className="fpo-main mx-auto max-w-7xl space-y-7 px-4 py-7 md:px-8">
           <Outlet />
         </main>
+      </div>
+    </div>
+  );
+}
+
+/** Shown to FPO managers until an admin approves their organisation. */
+function PendingVerification({
+  org,
+  onSignOut,
+}: {
+  org: FpoOrg | undefined;
+  onSignOut: () => void;
+}) {
+  const { t } = useI18n();
+  const [f, setF] = useState({ name: "", registration_no: "", district: "", state: "" });
+  useEffect(() => {
+    if (org)
+      setF({
+        name: org.name,
+        registration_no: org.registration_no ?? "",
+        district: org.district,
+        state: org.state,
+      });
+  }, [org]);
+  const save = useFpoMutation(
+    () =>
+      fpoApi.updateOrg({
+        name: f.name,
+        registration_no: f.registration_no,
+        district: f.district,
+        state: f.state,
+        contact_phone: org?.contact_phone ?? null,
+        commission_pct: org?.commission_pct ?? 2,
+      }),
+    { success: "Details updated and sent for review again" },
+  );
+  return (
+    <div className="fpo-portal flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="fpo-card w-full max-w-xl p-7 md:p-9">
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fpo-gold)] text-[var(--fpo-gold-ink)]">
+          <Wheat className="h-7 w-7" />
+        </span>
+        <h1 className="mt-5 font-serif text-3xl">
+          {org?.rejection_reason ? t("Your details need a change") : t("Waiting for verification")}
+        </h1>
+        {org?.rejection_reason ? (
+          <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm">
+            <p className="font-medium">{t("Message from the AgriSense admin")}:</p>
+            <p className="mt-1">{org.rejection_reason}</p>
+          </div>
+        ) : (
+          <p className="mt-2 text-base text-muted-foreground">
+            {t(
+              "The AgriSense admin is checking your FPO registration. You can use the FPO portal as soon as it is approved. Sign in again later to check.",
+            )}
+          </p>
+        )}
+        {org && (
+          <form
+            className="mt-6 grid gap-3 rounded-2xl bg-secondary p-4 text-sm sm:grid-cols-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate(undefined);
+            }}
+          >
+            {(
+              [
+                ["name", "FPO name"],
+                ["registration_no", "Registration number"],
+                ["district", "District"],
+                ["state", "State"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="grid gap-1">
+                <span className="text-muted-foreground">{t(label)}</span>
+                <input
+                  id={`pv-${key}`}
+                  value={f[key]}
+                  onChange={(e) => setF({ ...f, [key]: e.target.value })}
+                  readOnly={!org.rejection_reason}
+                  className="min-h-10 rounded-lg border border-input bg-card px-3 read-only:border-transparent read-only:bg-transparent read-only:px-0 read-only:font-medium"
+                />
+              </label>
+            ))}
+            {org.rejection_reason && (
+              <button
+                type="submit"
+                disabled={save.isPending}
+                className="min-h-11 rounded-xl bg-primary px-4 font-medium text-primary-foreground sm:col-span-2"
+              >
+                {t("Save and send for review")}
+              </button>
+            )}
+          </form>
+        )}
+        <button
+          onClick={onSignOut}
+          className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-5 font-medium hover:bg-secondary"
+        >
+          <LogOut className="h-4 w-4" /> {t("Sign out")}
+        </button>
       </div>
     </div>
   );

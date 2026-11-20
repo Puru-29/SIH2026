@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bell,
   Bot,
@@ -23,7 +23,6 @@ import {
   Users,
   Wallet,
   MessageSquare,
-  ShieldCheck,
   Wheat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,7 +32,9 @@ import { useNotifications } from "@/lib/notification-context";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "./language-selector";
 import { FontSizeControl } from "./font-size-control";
-import { clearUser, getSession } from "@/services/session";
+import type { UserRole } from "@/services/session";
+import { logout } from "@/services/api-client";
+import { useRequireRole } from "@/hooks/use-require-role";
 
 const FARMER_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -48,11 +49,10 @@ const FARMER_NAV = [
   { to: "/storage", label: "Cold Chain & Storage", icon: Snowflake },
   { to: "/payments", label: "Settlements", icon: Wallet },
   { to: "/my-fpo", label: "My FPO", icon: Wheat },
+  { to: "/messages", label: "Messages", icon: MessageSquare },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
-
-const ADMIN_NAV = [{ to: "/admin", label: "Verification", icon: ShieldCheck }] as const;
 
 const BUYER_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -67,26 +67,26 @@ const BUYER_NAV = [
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
-export function PortalLayout({ children }: { children: ReactNode }) {
+export function PortalLayout({
+  children,
+  roles = ["farmer", "buyer"],
+}: {
+  children: ReactNode;
+  /** Roles allowed on this page; others are sent to their own home page. */
+  roles?: UserRole[];
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const { location } = useFarmLocation();
   const { unread } = useNotifications();
   const { t } = useI18n();
   const navigate = useNavigate();
-  const session = getSession();
-  useEffect(() => {
-    if (!session) {
-      void navigate({ to: "/auth" });
-    } else if (session.role === "fpo") {
-      // FPO managers have their own portal.
-      void navigate({ to: "/fpo" });
-    }
-  }, [navigate, session]);
-  if (!session || session.role === "fpo") return null;
-  const userName = session?.name || "Ramesh Patil";
+  // FPO managers are never allowed here: they have their own portal at /fpo.
+  const session = useRequireRole(roles.filter((r) => r !== "fpo"));
+  if (!session) return null;
+  const userName = session.name ?? "";
   const isBuyer = session?.role === "buyer";
-  const nav = isBuyer ? BUYER_NAV : session.role === "admin" ? ADMIN_NAV : FARMER_NAV;
+  const nav = isBuyer ? BUYER_NAV : FARMER_NAV;
 
   return (
     <div className={cn("min-h-screen bg-background", isBuyer && "buyer-portal")}>
@@ -101,7 +101,12 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Boxes className="h-4 w-4" />
             </span>
-            <span className={cn("font-serif text-lg font-semibold tracking-tight", isBuyer && "text-orange-950")}>
+            <span
+              className={cn(
+                "font-serif text-lg font-semibold tracking-tight",
+                isBuyer && "text-orange-950",
+              )}
+            >
               {isBuyer ? "AgriSense Market" : "AgriSense"}
             </span>
           </Link>
@@ -156,15 +161,16 @@ export function PortalLayout({ children }: { children: ReactNode }) {
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:px-8">
-          <button
-            className="lg:hidden"
-            onClick={() => setOpen(true)}
-            aria-label="Open navigation"
-          >
+          <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open navigation">
             <Menu className="h-5 w-5" />
           </button>
           <p className="hidden text-sm text-muted-foreground md:block">
-            {session?.role === "buyer" ? t("Buyer portal") : session?.role === "admin" ? t("Admin") : t("Farmer portal")} · {userName}
+            {session?.role === "buyer"
+              ? t("Buyer portal")
+              : session?.role === "admin"
+                ? t("Admin")
+                : t("Farmer portal")}{" "}
+            · {userName}
           </p>
           <div className="ml-auto flex items-center gap-2.5">
             <FontSizeControl className="hidden sm:flex" />
@@ -186,9 +192,9 @@ export function PortalLayout({ children }: { children: ReactNode }) {
               {userName.charAt(0)}
             </span>
             <button
-              onClick={() => {
-                clearUser();
-                navigate({ to: "/auth" });
+              onClick={async () => {
+                await logout();
+                void navigate({ to: "/auth" });
               }}
               className="ml-2 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
               title={t("Sign out")}

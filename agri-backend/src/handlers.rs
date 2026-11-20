@@ -11,9 +11,9 @@ use crate::{
     db,
     errors::AppError,
     models::{
-        AuthResponse, CreateBuyerDemandRequest, CreateCropRequest, CreateLotRequest, CreateOfferRequest,
+        AuthResponse, CreateBuyerDemandRequest, CreateCropRequest, CreateLotRequest,
         LiveMandiPricesQuery, LoginRequest, NetRealisationRequest, NetRealisationResponse,
-        RegisterFarmerRequest, SmartSaleRequest, SmartSaleResponse, Transaction,
+        RegisterFarmerRequest, SmartSaleRequest, SmartSaleResponse,
     },
     services::{advisor::evaluate_smart_sale, calculator::calculate_net_realisation},
 };
@@ -26,7 +26,7 @@ async fn require_role(pool: &SqlitePool, user_id: i64, allowed: &[&str]) -> Resu
     if allowed.contains(&role.as_str()) {
         Ok(())
     } else {
-        Err(AppError::Unauthorized(format!(
+        Err(AppError::Forbidden(format!(
             "This action requires role {allowed:?}; user {user_id} has role '{role}'"
         )))
     }
@@ -44,18 +44,39 @@ pub async fn register_farmer(
     Json(payload): Json<RegisterFarmerRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     payload.validate()?;
+    if payload.role == "fpo"
+        && payload
+            .registration_no
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+    {
+        return Err(AppError::BadRequest(
+            "FPO registration number is required".into(),
+        ));
+    }
     let user = db::register_farmer(
         &pool,
         &payload.name,
         &payload.phone,
         &payload.pin,
         &payload.role,
+        db::FpoSignup {
+            registration_no: payload.registration_no.as_deref(),
+            district: payload.district.as_deref(),
+            state: payload.state.as_deref(),
+            primary_crops: payload.primary_crops.as_deref(),
+        },
     )
     .await?;
+    let token = crate::auth::create_session(&pool, user.id).await?;
     Ok(Json(AuthResponse {
         user_id: user.id,
         role: user.role,
         name: user.name,
+        status: user.status,
+        token: Some(token),
     }))
 }
 
@@ -65,11 +86,42 @@ pub async fn login_farmer(
 ) -> Result<Json<AuthResponse>, AppError> {
     payload.validate()?;
     let user = db::authenticate_farmer(&pool, &payload.phone, &payload.pin, &payload.role).await?;
+    let token = crate::auth::create_session(&pool, user.id).await?;
     Ok(Json(AuthResponse {
         user_id: user.id,
         role: user.role,
         name: user.name,
+        status: user.status,
+        token: Some(token),
     }))
+}
+
+/// Ends the current session.
+pub async fn logout(
+    State(pool): State<SqlitePool>,
+    headers: axum::http::HeaderMap,
+) -> Result<StatusCode, AppError> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::trim)
+        .unwrap_or("");
+    if !token.is_empty() {
+        crate::auth::delete_session(&pool, token).await?;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The signed-in user, with role and status from the database.
+pub async fn me(auth_user: AuthUser) -> Json<AuthResponse> {
+    Json(AuthResponse {
+        user_id: auth_user.user_id,
+        role: auth_user.role,
+        name: auth_user.name,
+        status: auth_user.status,
+        token: None,
+    })
 }
 
 pub async fn get_crops(
@@ -93,32 +145,6 @@ pub async fn create_crop(
     Ok(Json(db::find_or_create_crop(&pool, &payload.name).await?))
 }
 
-pub async fn get_lots(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-) -> Result<Json<Vec<crate::models::Lot>>, AppError> {
-    require_role(&pool, auth_user.user_id, &["farmer", "buyer"]).await?;
-    let role = db::get_user_role(&pool, auth_user.user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-    Ok(Json(
-        db::get_lots_for_user(&pool, auth_user.user_id, &role).await?,
-    ))
-}
-
-pub async fn get_offers(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-) -> Result<Json<Vec<crate::models::Offer>>, AppError> {
-    require_role(&pool, auth_user.user_id, &["farmer", "buyer"]).await?;
-    let role = db::get_user_role(&pool, auth_user.user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-    Ok(Json(
-        db::get_offers_for_user(&pool, auth_user.user_id, &role).await?,
-    ))
-}
-
 pub async fn create_buyer_demand(
     State(pool): State<SqlitePool>,
     auth_user: AuthUser,
@@ -136,28 +162,24 @@ pub async fn get_buyer_demands(
     auth_user: AuthUser,
 ) -> Result<Json<Vec<crate::models::BuyerPrice>>, AppError> {
     require_role(&pool, auth_user.user_id, &["buyer"]).await?;
-    Ok(Json(
-        db::get_buyer_demands_for_user(&pool, auth_user.user_id).await?,
-    ))
-}
-
-pub async fn delete_buyer_demand(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-    Path(demand_id): Path<i64>,
-) -> Result<StatusCode, AppError> {
-    require_role(&pool, auth_user.user_id, &["buyer"]).await?;
-    db::delete_buyer_demand(&pool, auth_user.user_id, demand_id).await?;
-    Ok(StatusCode::NO_CONTENT)
+    let counts = crate::market::matching_lot_counts(&pool, auth_user.user_id).await?;
+    let mut list = db::get_buyer_demands_for_user(&pool, auth_user.user_id).await?;
+    for d in &mut list {
+        d.matching_lots = counts.get(&d.id).copied().unwrap_or(0);
+    }
+    Ok(Json(list))
 }
 
 pub async fn get_live_mandi_prices(
+    State(pool): State<SqlitePool>,
     Query(params): Query<LiveMandiPricesQuery>,
 ) -> Result<Json<Vec<crate::models::LiveMandiPrice>>, AppError> {
     params.validate()?;
     let prices =
         crate::services::mandi::fetch_prices(params.state.as_deref(), params.commodity.as_deref())
             .await?;
+    // Save the day's prices so the forecast builds up its own history.
+    crate::market::record_prices(&pool, &prices).await;
     Ok(Json(prices))
 }
 
@@ -227,64 +249,40 @@ pub async fn create_lot(
     payload.validate()?;
     require_role(&pool, auth_user.user_id, &["farmer", "fpo"]).await?;
     let lot = db::create_lot(&pool, auth_user.user_id, &payload).await?;
+    if let Err(e) = crate::market::notify_matching_buyers(&pool, lot.id).await {
+        tracing::warn!("could not notify buyers about lot {}: {e:?}", lot.id);
+    }
     Ok(Json(lot))
 }
 
+/// Buyer requirements for a lot, best match first (see `services::matcher`).
+/// Only the farmer who listed the lot (or an admin) can see them.
 pub async fn get_matching_buyers(
     State(pool): State<SqlitePool>,
+    auth_user: AuthUser,
     Path(lot_id): Path<i64>,
-) -> Result<Json<Vec<crate::models::BuyerDemand>>, AppError> {
+) -> Result<Json<Vec<crate::services::matcher::Ranked>>, AppError> {
     let lot = db::get_lot(&pool, lot_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Lot not found: id={lot_id}")))?;
-
-    let demands = db::get_matching_demands(&pool, &lot).await?;
-    Ok(Json(demands))
-}
-
-pub async fn create_offer(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-    Json(payload): Json<CreateOfferRequest>,
-) -> Result<Json<crate::models::Offer>, AppError> {
-    payload.validate()?;
-    let role = db::get_user_role(&pool, auth_user.user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-    require_role(&pool, auth_user.user_id, &["buyer", "farmer"]).await?;
-    let offer = db::create_offer(&pool, auth_user.user_id, &role, &payload).await?;
-    Ok(Json(offer))
-}
-
-pub async fn accept_offer(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-    Path(offer_id): Path<i64>,
-) -> Result<Json<Transaction>, AppError> {
-    let role = db::get_user_role(&pool, auth_user.user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-    require_role(&pool, auth_user.user_id, &["farmer", "buyer"]).await?;
-    let transaction = db::accept_offer(&pool, offer_id, auth_user.user_id, &role).await?;
-    Ok(Json(transaction))
-}
-
-pub async fn get_transaction(
-    State(pool): State<SqlitePool>,
-    Path(transaction_id): Path<i64>,
-) -> Result<Json<Transaction>, AppError> {
-    let tx = db::get_transaction(&pool, transaction_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("Transaction not found: id={transaction_id}")))?;
-    Ok(Json(tx))
-}
-
-pub async fn get_transactions(
-    State(pool): State<SqlitePool>,
-    auth_user: AuthUser,
-) -> Result<Json<Vec<Transaction>>, AppError> {
-    require_role(&pool, auth_user.user_id, &["farmer", "buyer"]).await?;
-    Ok(Json(
-        db::get_transactions_for_user(&pool, auth_user.user_id).await?,
-    ))
+    if lot.farmer_id != auth_user.user_id && auth_user.role != "admin" {
+        return Err(AppError::Forbidden(
+            "Only the farmer who listed this lot can see matching buyers".into(),
+        ));
+    }
+    let mut candidates = db::get_matching_demands(&pool, &lot).await?;
+    let origin: String =
+        sqlx::query_scalar("SELECT COALESCE((SELECT location FROM farmers WHERE id = ?), '')")
+            .bind(lot.farmer_id)
+            .fetch_one(&pool)
+            .await?;
+    for c in &mut candidates {
+        c.freight_per_quintal =
+            crate::market::freight_per_quintal(&pool, &origin, &c.delivery_location).await?;
+    }
+    Ok(Json(crate::services::matcher::rank(
+        lot.quantity_quintals,
+        &lot.expected_quality,
+        &candidates,
+    )))
 }

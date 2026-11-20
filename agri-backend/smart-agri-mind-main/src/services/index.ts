@@ -59,7 +59,7 @@ export {
 } from "@/lib/agri";
 
 /** Simulated network latency for the mock adapter. */
-const delay = <T,>(value: T, ms = 120): Promise<T> =>
+const delay = <T>(value: T, ms = 120): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));
 
 /* ---------------------------------------------------------------- catalogue */
@@ -150,7 +150,7 @@ export function calculateNetRealization({
   const best = BUYERS.map((b) => {
     const km = roadKm(from, b);
     const freight = transportPerKg(km);
-    const headline = Math.round((base * (b.offer / 30)) * 10) / 10;
+    const headline = Math.round(base * (b.offer / 30) * 10) / 10;
     return { name: b.name, km, freight, headline, net: headline - freight };
   }).sort((a, b) => b.net - a.net)[0]!;
 
@@ -176,10 +176,7 @@ export type AggregationResult = {
   totalGain: number;
 };
 
-export function aggregateLots(
-  poolId: string,
-  memberIds: string[],
-): AggregationResult | null {
+export function aggregateLots(poolId: string, memberIds: string[]): AggregationResult | null {
   const pool = FPO_POOLS.find((p) => p.id === poolId);
   if (!pool) return null;
   const pooledKg = pool.members
@@ -204,16 +201,8 @@ export type { AppNotification };
 
 /* -------------------------------------------- cold chain & virtual assistant */
 
-import {
-  BOT_ANSWERS,
-  BOT_FALLBACK,
-  BOT_GREETING,
-  COLD_CHAIN_FACILITIES,
-} from "./mock-data";
-import {
-  detectLanguage,
-  BOT_LANG_INFO,
-} from "./language-detector";
+import { BOT_ANSWERS, BOT_FALLBACK, BOT_GREETING, COLD_CHAIN_FACILITIES } from "./mock-data";
+import { detectLanguage, BOT_LANG_INFO } from "./language-detector";
 import type { SupportedBotLang, DetectionResult } from "./language-detector";
 
 export {
@@ -258,9 +247,13 @@ export function askAgriBot(
     outputLang?: SupportedBotLang | undefined;
   } = {},
 ): AgriBotResponse {
-  const normContext = (contextLang === "mr" || contextLang === "hi" || contextLang === "pa" || contextLang === "hinglish")
-    ? contextLang
-    : "en";
+  const normContext =
+    contextLang === "mr" ||
+    contextLang === "hi" ||
+    contextLang === "pa" ||
+    contextLang === "hinglish"
+      ? contextLang
+      : "en";
 
   const detection = options.inputLang
     ? { lang: options.inputLang, confidence: 1 }
@@ -275,42 +268,115 @@ export function askAgriBot(
   let matchedTopic: string | undefined;
 
   // Onion / Pyaj / Kanda
-  if (has("onion", "कांदा", "कांद्या", "प्याज", "pyaj", "pyaaz", "kanda", "lasalgaon", "ਲਾਸਲਗਾਂਵ", "ਪਿਆਜ਼")) {
+  if (
+    has(
+      "onion",
+      "कांदा",
+      "कांद्या",
+      "प्याज",
+      "pyaj",
+      "pyaaz",
+      "kanda",
+      "lasalgaon",
+      "ਲਾਸਲਗਾਂਵ",
+      "ਪਿਆਜ਼",
+    )
+  ) {
     replyText = pick("onion-rate")!;
     matchedTopic = "onion-rate";
   }
   // Soybean timing
-  else if (has("soy", "सोयाबीन", "latur", "ਲਾਤੂਰ", "ਸੋਇਆਬੀਨ", "soyabean", "hold", "kab bechu", "kadhi viku")) {
+  else if (
+    has(
+      "soy",
+      "सोयाबीन",
+      "latur",
+      "ਲਾਤੂਰ",
+      "ਸੋਇਆਬੀਨ",
+      "soyabean",
+      "hold",
+      "kab bechu",
+      "kadhi viku",
+    )
+  ) {
     replyText = pick("soybean-timing")!;
     matchedTopic = "soybean-timing";
   }
   // Tomato / Tamatar
-  else if (has("tomato", "टोमॅटो", "टमाटर", "pune", "पुणे", "ਪੁਣੇ", "ਟਮਾਟਰ", "tamatar", "market yard")) {
+  else if (
+    has("tomato", "टोमॅटो", "टमाटर", "pune", "पुणे", "ਪੁਣੇ", "ਟਮਾਟਰ", "tamatar", "market yard")
+  ) {
     replyText = pick("pune-tomato")!;
     matchedTopic = "pune-tomato";
   }
   // AI grading
-  else if (has("grad", "ग्रेड", "quality", "गुणवत्ता", "फोटो", "ਗ੍ਰੇਡ", "grading", "crate", "norm")) {
+  else if (
+    has("grad", "ग्रेड", "quality", "गुणवत्ता", "फोटो", "ਗ੍ਰੇਡ", "grading", "crate", "norm")
+  ) {
     replyText = pick("ai-grading")!;
     matchedTopic = "ai-grading";
   }
   // Cold storage / warehouse / silos
-  else if (has("cold", "storage", "शीतगृह", "भंडारण", "वेयरहाउस", "warehouse", "silo", "ਕੋਲਡ", "ਸਟੋਰੇਜ", "chawl", "kharcha")) {
+  else if (
+    has(
+      "cold",
+      "storage",
+      "शीतगृह",
+      "भंडारण",
+      "वेयरहाउस",
+      "warehouse",
+      "silo",
+      "ਕੋਲਡ",
+      "ਸਟੋਰੇਜ",
+      "chawl",
+      "kharcha",
+    )
+  ) {
     replyText = pick("cold-storage")!;
     matchedTopic = "cold-storage";
   }
   // Payment & Escrow
-  else if (has("payment", "escrow", "पैसे", "पेमेंट", "खाते", "advance", "बँक", "बैंक", "ਖਾਤੇ", "advance", "surakshit", "paisa")) {
+  else if (
+    has(
+      "payment",
+      "escrow",
+      "पैसे",
+      "पेमेंट",
+      "खाते",
+      "advance",
+      "बँक",
+      "बैंक",
+      "ਖਾਤੇ",
+      "advance",
+      "surakshit",
+      "paisa",
+    )
+  ) {
     replyText = pick("payment-escrow")!;
     matchedTopic = "payment-escrow";
   }
   // FPO pooling & aggregation
-  else if (has("fpo", "pool", "aggregation", "एकत्र", "समूह", "ਸਮੂਹ", "consignment", "bulk", "jodna")) {
+  else if (
+    has("fpo", "pool", "aggregation", "एकत्र", "समूह", "ਸਮੂਹ", "consignment", "bulk", "jodna")
+  ) {
     replyText = pick("fpo-pooling")!;
     matchedTopic = "fpo-pooling";
   }
   // Greetings
-  else if (has("hi", "hello", "hey", "namaste", "namaskar", "sat sri akaal", "sasrikal", "pranam", "kasa ahes", "kaise ho")) {
+  else if (
+    has(
+      "hi",
+      "hello",
+      "hey",
+      "namaste",
+      "namaskar",
+      "sat sri akaal",
+      "sasrikal",
+      "pranam",
+      "kasa ahes",
+      "kaise ho",
+    )
+  ) {
     replyText = BOT_GREETING[targetLang];
     matchedTopic = "greeting";
   }

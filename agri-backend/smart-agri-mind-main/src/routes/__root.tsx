@@ -90,7 +90,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "AgriConnect (SIH 26132) turns mandi prices, buyer demand and transport costs into one clear decision: sell now, hold or split.",
       },
-      { property: "og:title", content: "AgriConnect — Market Intelligence for Farmers (SIH 26132)" },
+      {
+        property: "og:title",
+        content: "AgriConnect — Market Intelligence for Farmers (SIH 26132)",
+      },
       {
         property: "og:description",
         content: "Know the price, the buyer and the net realization before you harvest.",
@@ -143,7 +146,11 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID.apps.googleusercontent.com"}>
+    <GoogleOAuthProvider
+      clientId={
+        import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID.apps.googleusercontent.com"
+      }
+    >
       <QueryClientProvider client={queryClient}>
         <FontSizeProvider>
           <I18nProvider>
@@ -160,4 +167,3 @@ function RootComponent() {
     </GoogleOAuthProvider>
   );
 }
-

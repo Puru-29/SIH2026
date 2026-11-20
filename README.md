@@ -1,313 +1,118 @@
 # AgriSense — Agricultural Market Intelligence
 
-AgriSense is a Smart India Hackathon prototype for connecting farmers, Farmer Producer Organizations (FPOs), and agricultural buyers. It brings crop-lot management, mandi prices, buyer demand, sale guidance, and deal workflows together so users can make more informed selling and procurement decisions.
+AgriSense is a Smart India Hackathon (SIH 2026) prototype that helps farmers, Farmer Producer Organisations (FPOs) and buyers trade crops on better terms. It answers one question for the farmer: **which buyer or market gives the best practical return after freight, storage, timing and crop risk?**
 
-> **Project status:** This repository contains a working prototype, not a production-ready marketplace. Some API-backed flows are implemented; several portal screens currently use local sample data or simulated interactions. See [Implemented features and current limitations](#implemented-features-and-current-limitations).
+It brings together live mandi prices, buyer requirements, sell/hold advice, negotiation, order tracking, payments, FPO crop pooling and an admin console, all backed by one Rust API and a SQLite database.
 
-## Contents
+![Farmer dashboard](docs/screenshots/farmer-dashboard.png)
 
-- [Product and portals](#product-and-portals)
-- [Implemented features and current limitations](#implemented-features-and-current-limitations)
-- [Technology stack](#technology-stack)
-- [Architecture and repository layout](#architecture-and-repository-layout)
-- [Run locally](#run-locally)
-- [Configuration](#configuration)
-- [Backend API](#backend-api)
-- [Typical demo workflow](#typical-demo-workflow)
-- [Roadmap](#roadmap)
-- [Testing and quality checks](#testing-and-quality-checks)
-
-## Product and portals
-
-AgriSense is designed around the question: **Which buyer or market gives the farmer the best practical return after costs, timing, and crop risk are considered?**
-
-The web application includes these audience areas and screens:
-
-| Route | Portal or screen | Purpose |
+| Negotiation history | FPO portal | Admin verification |
 |---|---|---|
-| `/` | Public landing page | Introduces the product, its market-intelligence approach, workflow, and calls to action. |
-| `/auth` | Sign in | Farmer and buyer sign-in form using a phone number and PIN. |
-| `/register` | Registration | Account registration entry point. |
-| `/dashboard` | Farmer dashboard | Snapshot of crop lots, selling decisions, and market or buyer opportunities. |
-| `/crops` | Farmer crops | Crop-lot overview and statuses. |
-| `/markets` | Market intelligence | Mandi price and market information. |
-| `/decision` | Sale decision support | Smart-sale recommendations and net-realisation decision support. |
-| `/forecast` | Price forecast | Price outlook screen. |
-| `/buyers` | Buyer opportunities | Buyer and offer information for farmers. |
-| `/browse-produce` | Buyer procurement | Browse available lots and submit offers. |
-| `/requirements` | Buyer requirements | Buyer demand and procurement requirements. |
-| `/orders` | Orders | Deal and order tracking screen. |
-| `/payments` | Payments and settlements | Payment and settlement screen. |
-| `/fpo` | FPO aggregation | Pool member lots, compare bulk-price and freight examples, and review payout concepts. |
-| `/logistics` | Logistics | Transport and consignment screen. |
-| `/storage` | Storage | Storage and cold-chain facility screen. |
-| `/suppliers` | Suppliers | Supplier discovery screen. |
-| `/messages` | Messages | Conversation screen. |
-| `/notifications` | Notifications | Activity and alert feed. |
-| `/profile` | Profile | User and preference information. |
-| `/agribot` | AgriBot | Agricultural assistance/chat interface. |
+| ![Negotiation](docs/screenshots/negotiation.png) | ![FPO dashboard](docs/screenshots/fpo-dashboard.png) | ![Admin](docs/screenshots/admin-verification.png) |
 
-These are application routes and product surfaces; the presence of a screen does **not** mean every feature on it is backed by a live API or external service. See the current implementation notes below.
+## The problem it solves
 
-## Implemented features and current limitations
+Small farmers usually sell at the nearest mandi on the day of harvest, without knowing what other markets or buyers pay, what freight costs, or whether prices are about to rise. Buyers struggle to find reliable suppliers in the quantities they need. AgriSense:
 
-### Backend capabilities
+- shows **live mandi prices** (Mandi API) and a **trend-based price outlook**, clearly labelled as an estimate;
+- **matches each lot to buyer requirements**, ranked by price, freight, buyer trust, quality and deadline;
+- lets farmers and buyers **negotiate** (offer, counter, accept, decline) and then **track the order and the payment** to the end;
+- lets **FPOs pool** members' crops into bulk lots, sell them, and split the money fairly by quantity and grade;
+- gives the **admin** verification, dispute handling, market monitoring and an audit log.
 
-- Rust/Axum HTTP API with a health endpoint.
-- SQLite persistence, SQL migrations, and demo seed data.
-- Farmer and buyer registration and PIN-based login.
-- Crop catalogue and role-scoped crop-lot and offer retrieval.
-- Farmer/FPO crop-lot creation and buyer-demand creation, listing, and deletion.
-- Buyer-demand matching for a crop lot.
-- Offer submission and acceptance, with accepted deals recorded as transactions.
-- Net-realisation calculation using a mandi price plus transport, handling, storage, and expected deductions.
-- Rule-based smart-sale advice: sell now, wait, or partially sell, based on price assumptions, crop perishability, and urgency.
-- Live mandi-price, state, and commodity lookups through the configured external Mandi API.
-- Request validation, structured error handling, HTTP tracing, and configurable CORS.
+## Portals and demo logins
 
-### Frontend capabilities
+The demo data loads automatically the first time the backend starts. All demo PINs are `1234` (change it with `DEMO_PIN`).
 
-- Responsive landing page and a multi-page farmer/buyer/FPO portal experience.
-- Reusable portal layout, cards, charts, controls, navigation, and form components.
-- Sign-in and registration UI, a persisted browser session, and a typed fetch client for the Rust API.
-- TanStack Query hooks for API-backed crop, lot, offer, market, and decision-support flows.
-- Search/filter and offer submission in buyer produce browsing.
-- Interactive prototype screens for aggregation, market intelligence, logistics, storage, messages, notifications, profile, and related workflows.
-- Language and location controls, notification UI, and adjustable font-size support.
+| Portal | Sign in at | Phone | What to try |
+|---|---|---|---|
+| Farmer | `/auth` | `9876543210` (Ramesh Kumar) | Dashboard advice, My Crops, a payment waiting for confirmation, messages |
+| Buyer | `/auth` | `1234567890` (FreshFarm Retail) | Browse produce, requirements, suppliers, orders and invoices |
+| FPO | `/auth` | `9988776655` (Punjab Kisan FPO) | Pools, members, sales and payouts |
+| FPO members | `/auth` (farmer) | `9876500001` to `9876500006` | My FPO, pledging to a pool, payouts |
+| FPO waiting for approval | `/auth` | `9988776600` (Malwa Growers FPO) | The "waiting for verification" screen |
+| Admin | `/admin/login` | from `ADMIN_PHONE` / `ADMIN_PIN` | Verification, disputes, marketplace flags, audit log |
 
-### Prototype boundaries
+There is no default admin password. The admin account is created only when `ADMIN_PHONE` and `ADMIN_PIN` are set.
 
-- Several UI areas use the sample fixtures in `src/services/mock-data.ts`; their sample data and interactions are for demonstration and are not persisted by the backend.
-- The FPO, logistics, storage, messaging, payments, orders, forecast, and AgriBot experiences should be treated as prototype screens unless a specific action is visibly connected to an API.
-- Smart-sale advice is a deterministic rule engine, not a trained machine-learning model or a guaranteed price forecast.
-- The current backend identifies authenticated requests through an `X-User-Id` header after login. This is demo-grade identity handling, not production authentication or authorization.
-- Registration currently supports farmer and buyer roles in the sign-in UI. Other roles shown by product concepts do not necessarily have complete backend account flows.
-- The external mandi service and network access are required for live mandi lookups; a local SQLite database alone does not provide live prices.
+## Tech stack
 
-## Technology stack
-
-| Area | Technologies currently in the repository |
+| Area | Technology |
 |---|---|
-| Backend language and edition | Rust, edition 2021 |
-| HTTP API | Axum 0.7 |
-| Async runtime | Tokio |
-| Database | SQLite with SQLx 0.7, migration support, and WAL mode |
-| Serialization and validation | Serde, serde_json, validator |
-| External HTTP | reqwest with Rustls |
-| Configuration and logging | dotenvy, tracing, tracing-subscriber |
-| CORS and HTTP tracing | tower-http |
-| Frontend framework | React 19 with TanStack Start and TanStack Router |
-| Frontend build and development | Vite 8, TypeScript 5 |
-| Data fetching and state | TanStack Query |
-| Styling | Tailwind CSS 4 |
-| UI and visualization | Radix UI primitives, custom components, Lucide icons, Recharts |
-| Forms and schemas | React Hook Form, Zod, `@hookform/resolvers` |
-| Package lock | `bun.lock` in the frontend project |
+| Backend | Rust 2021, Axum 0.7, Tokio, SQLx 0.7 with SQLite (WAL), Argon2 PIN hashing |
+| External data | [Mandi API](agri-backend/MANDI-API-SPEC.md) for live and historical mandi prices (no key needed) |
+| Frontend | React 19, TanStack Start / Router / Query, Vite, TypeScript, Tailwind CSS 4, Recharts |
+| Languages | English, Hindi, Marathi, Punjabi, Gujarati (the newer FPO, admin and deal screens cover English, Hindi, Punjabi and Gujarati) |
 
-## Architecture and repository layout
+## Run it locally
 
-```text
-.
-├── README.md
-└── agri-backend/
-    ├── Cargo.toml
-    ├── migrations/                 # SQL schema and data migrations
-    ├── src/
-    │   ├── main.rs                 # Configuration, routes, server startup
-    │   ├── auth.rs                 # Demo request identity extraction
-    │   ├── db.rs                   # SQLite queries and persistence
-    │   ├── errors.rs               # API error responses
-    │   ├── handlers.rs             # HTTP handlers
-    │   ├── models.rs               # API/domain models
-    │   ├── seed.rs                 # Local demo data
-    │   └── services/
-    │       ├── advisor.rs          # Rule-based smart-sale advice
-    │       ├── calculator.rs       # Net-realisation calculations
-    │       └── mandi.rs            # External mandi API client
-    └── smart-agri-mind-main/
-        ├── package.json
-        ├── vite.config.ts
-        └── src/
-            ├── routes/             # TanStack file-based pages
-            ├── components/         # Portal and reusable UI components
-            ├── hooks/              # Data/query hooks
-            ├── services/           # API client, types, session, sample data
-            └── lib/                # Shared application utilities and context
-```
+You need Rust (stable), Node.js 20.19 or newer with npm (or Bun), and internet access for live mandi prices.
 
-The Rust API owns persistent business data and serves JSON. The browser application calls it through a typed API client. During local development, Vite proxies `/api` and `/health` to the backend. Migrations run when the backend starts; demo seed data is loaded for development.
-
-## Run locally
-
-### Prerequisites
-
-- Rust and Cargo (stable toolchain).
-- Node.js and Bun (the frontend repository includes `bun.lock`).
-- Network access to the configured Mandi API if you want live mandi data.
-
-### 1. Start the backend
-
-Open PowerShell in the repository root:
+**1. Backend** (from the repository root):
 
 ```powershell
 cd agri-backend
+copy .env.example .env      # then set ADMIN_PHONE and ADMIN_PIN
 $env:PORT = "3001"
 cargo run
 ```
 
-The frontend's Vite proxy is configured to forward requests to `http://127.0.0.1:3001`. The backend itself defaults to port `8080`, so the command above sets the port to match the frontend proxy. The API health check is available at `http://127.0.0.1:3001/health`.
+On macOS or Linux: `cd agri-backend && cp .env.example .env && PORT=3001 cargo run`.
 
-On macOS or Linux, the equivalent is:
+The first start creates `agri_prototype.db`, applies the migrations and loads the demo data. Check it with `curl http://localhost:3001/health`.
 
-```sh
-cd agri-backend
-PORT=3001 cargo run
-```
-
-On its first start, the backend creates the configured SQLite database, applies `migrations/`, and attempts to seed demo data.
-
-### 2. Start the frontend
-
-In a second terminal, from the repository root:
+**2. Frontend** (second terminal):
 
 ```powershell
 cd agri-backend\smart-agri-mind-main
-bun install
-bun run dev
+npm install
+npm run dev
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`).
+Open <http://localhost:5173>. Vite forwards `/api` to the backend on port 3001.
 
-### Build and lint the frontend
-
-Run these commands from `agri-backend\smart-agri-mind-main`:
+**Checks**
 
 ```powershell
-bun run build
-bun run lint
-```
-
-### Run backend tests
-
-Run these commands from `agri-backend`:
-
-```powershell
+# backend (from agri-backend)
 cargo test
-cargo check
+cargo clippy --all-targets
+# frontend (from agri-backend/smart-agri-mind-main)
+npm run lint
+npm run build
 ```
 
-## Configuration
+## Demo flow (about 10 minutes)
 
-The backend loads `.env` from its working directory. Do not commit credentials or private deployment settings. Available settings include:
+1. **Farmer**: register a new farmer, set the farm location on Profile, then add a lot on **My Crops**. Buyers with a matching requirement are notified.
+2. **Buyer**: register a buyer, post a requirement for the same crop. The matching-lot count updates; open it and offer your price. Or find the farmer on **Suppliers** or **Browse produce**.
+3. **Farmer**: the offer appears in Notifications and on the lot. Open **Offers & history**, counter with a higher price.
+4. **Buyer**: accept the counter offer on the dashboard. An order starts for both sides.
+5. Message each other from the order or lot (**Messages**, refreshed every 10 seconds).
+6. **Farmer** marks the order picked up and in transit; **buyer** marks it delivered (**Orders** or **Logistics**).
+7. **Buyer** records the payment on **Payments**; **farmer** confirms it was received. The order becomes completed, and the invoice is on `/invoice/<order id>`.
+8. **FPO**: sign in as the demo FPO to see pools, intake, sales and the payout split. **Admin**: approve the waiting FPO and buyer, review the open dispute, and check the audit log.
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `DATABASE_URL` | SQLx SQLite connection string | `sqlite:agri_prototype.db` |
-| `PORT` | Backend listen port | `8080` |
-| `FRONTEND_URL` | Allowed frontend CORS origin | `http://localhost:5173` |
-| `RUST_LOG` | Rust tracing filter | `agri_backend=debug,info` |
-| `MANDI_API_BASE_URL` | External mandi API base URL | `https://mandi-api.onrender.com/v1` |
-| `MANDI_API_STATE` | Default state used for mandi price requests without a state | `Maharashtra` |
-| `VITE_API_BASE_URL` | Frontend API base URL; set for deployments where the API is not same-origin | Empty (relative requests through the development proxy) |
+## Repository layout
 
-For local frontend/backend integration, either run the backend on port `3001` as shown above or update the proxy target in `agri-backend/smart-agri-mind-main/vite.config.ts` to match the backend port. For deployment, configure the frontend API base URL, backend CORS origin, database, and external API settings for the deployment environment.
-
-## Backend API
-
-All endpoints are served by the Rust backend. Authenticated endpoints use the current prototype's `X-User-Id` header, which the frontend client adds from its local session.
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/health` | Health and backend version |
-| `POST` | `/api/auth/register` | Register a farmer or buyer |
-| `POST` | `/api/auth/login` | Sign in with phone, PIN, and role |
-| `GET` | `/api/crops` | List crops |
-| `GET`, `POST` | `/api/lots` | List the signed-in user's lots; create a lot |
-| `GET`, `POST` | `/api/offers` | List relevant offers; create an offer |
-| `GET`, `POST` | `/api/buyer-demands` | List or create buyer demand |
-| `DELETE` | `/api/buyer-demands/:id` | Delete a buyer demand |
-| `GET` | `/api/mandi/prices` | Fetch live mandi prices; supports `state` and `commodity` query parameters |
-| `GET` | `/api/mandi/states` | List supported mandi states |
-| `GET` | `/api/mandi/commodities` | List commodities; optionally filter by `state` |
-| `GET` | `/api/buyers/prices` | List buyer price/demand information |
-| `POST` | `/api/calculator/net-realisation` | Calculate proceeds after estimated costs |
-| `POST` | `/api/advisor/smart-sale` | Return a rule-based sale strategy |
-| `GET` | `/api/lots/:id/matching-buyers` | Find buyer demands matching a lot |
-| `POST` | `/api/offers/:id/accept` | Accept an offer and create a transaction |
-| `GET` | `/api/transactions` | List transactions visible to the signed-in user |
-| `GET` | `/api/transactions/:id` | Get a transaction |
-
-### Example requests
-
-Health check:
-
-```sh
-curl http://localhost:3001/health
+```text
+.
+├── README.md                  # this file
+├── docs/screenshots/
+└── agri-backend/
+    ├── README.md              # backend details and the full API reference
+    ├── .env.example
+    ├── migrations/            # SQLx migrations (never edit an applied one)
+    ├── src/                   # Rust API
+    └── smart-agri-mind-main/  # React frontend
 ```
 
-Fetch mandi prices for a state and crop:
+See [agri-backend/README.md](agri-backend/README.md) for the architecture, configuration and every API endpoint.
 
-```sh
-curl "http://localhost:3001/api/mandi/prices?state=Maharashtra&commodity=Onion"
-```
+## Honest limits
 
-Calculate net realisation:
-
-```sh
-curl -X POST http://localhost:3001/api/calculator/net-realisation \
-  -H "Content-Type: application/json" \
-  -d '{
-    "crop_id": 1,
-    "market_id": 1,
-    "quantity_quintals": 15,
-    "farmer_location": "Haryana",
-    "handling_costs": 300,
-    "expected_deductions": 100,
-    "expected_storage_days": 2
-  }'
-```
-
-## Typical demo workflow
-
-1. Sign in as a seeded demo farmer or buyer, or register an account.
-2. Review crops and create or browse crop lots.
-3. Check live mandi prices and buyer demand.
-4. Compare estimated net realisation and request a smart-sale strategy.
-5. Match a crop lot with buyer demand and submit an offer.
-6. Accept an offer and review the resulting transaction.
-
-Demo IDs and sample data are for local development only. Prices, costs, and recommendations should be independently verified before any real-world decision.
-
-## Roadmap
-
-These are proposed next steps, not claims about completed functionality. Priorities can change based on project requirements.
-
-### Platform foundation
-
-- Replace demo `X-User-Id` identity with secure, expiring authentication and enforce role-based access on every protected operation.
-- Add robust input validation, rate limiting, audit trails, privacy controls, and security testing before real users or sensitive information are involved.
-- Define production deployment, environment/secrets management, database backups, monitoring, and automated CI checks.
-
-### Product and data
-
-- Connect all portal screens to persistent backend APIs and make loading, empty, error, and offline states consistent.
-- Complete buyer, FPO, and admin account journeys and role-specific dashboards.
-- Integrate verified live mandi and market data with freshness indicators, source attribution, and resilient caching.
-- Add price history and validated forecasting; clearly distinguish observed prices from estimates.
-- Improve buyer/lot matching with configurable crop, quality, volume, location, and delivery criteria.
-- Complete end-to-end offer, order, delivery, payment, and settlement workflows.
-- Add real logistics and storage provider integrations instead of sample facilities and simulated tracking.
-- Add multilingual content and accessibility improvements across every portal surface.
-
-### Decision support
-
-- Enhance net-realisation estimates with transparent, configurable cost assumptions.
-- Evaluate recommendations against historical data and user feedback before using predictive models.
-- Provide explainable recommendations and make uncertainty and data freshness visible.
-
-## Testing and quality checks
-
-- Rust unit tests cover net-realisation calculations and smart-sale decision cases.
-- Run backend tests with `cargo test` and compile checks with `cargo check`.
-- Run frontend linting with `bun run lint` and verify the production bundle with `bun run build`.
-- Live mandi endpoints depend on the external service and network availability; tests or demos relying on live prices may require a reachable service.
+- Price forecasts are a **trend-based estimate** from recent mandi prices (moving averages and a damped trend), not a trained model and not a guarantee.
+- Freight comes from a small route table (state to state); unknown routes are shown as "not known" rather than guessed.
+- Payments are recorded by the buyer and confirmed by the farmer; no money moves through AgriSense.
+- The Mandi API covers a limited set of states (Haryana, for example, is missing), and its free hosting can be slow on the first request.
+- AgriBot answers come from a fixed set of agricultural answers, not a live AI model.

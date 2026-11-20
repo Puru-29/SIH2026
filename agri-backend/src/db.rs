@@ -1,16 +1,16 @@
 use crate::errors::AppError;
-use crate::models::{
-    BuyerDemand, CreateLotRequest, CreateOfferRequest, Crop, Lot, Market, Offer, Transaction,
-};
-use sha2::{Digest, Sha256};
+use crate::models::{BuyerDemand, CreateLotRequest, Crop, Lot, Market};
 use sqlx::SqlitePool;
 
 // Runtime sqlx queries instead of query! macros — avoids needing a live DB at compile time.
 
-fn hash_pin(pin: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(pin.as_bytes());
-    format!("{:x}", hasher.finalize())
+/// FPO details collected at registration.
+#[derive(Default)]
+pub struct FpoSignup<'a> {
+    pub registration_no: Option<&'a str>,
+    pub district: Option<&'a str>,
+    pub state: Option<&'a str>,
+    pub primary_crops: Option<&'a str>,
 }
 
 pub async fn register_farmer(
@@ -19,23 +19,28 @@ pub async fn register_farmer(
     phone: &str,
     pin: &str,
     role: &str,
+    fpo: FpoSignup<'_>,
 ) -> Result<crate::models::User, AppError> {
+    // Admins are never self-registered; they are created from ADMIN_PHONE/ADMIN_PIN.
     if !matches!(role, "farmer" | "buyer" | "fpo") {
         return Err(AppError::BadRequest(
             "Only farmer, buyer and FPO accounts can be created".into(),
         ));
     }
-    let pin_hash = hash_pin(pin);
+    // FPOs wait for admin verification before they can use the portal.
+    let status = if role == "fpo" { "pending" } else { "active" };
+    let pin_hash = crate::auth::hash_pin(pin);
     let mut tx = pool.begin().await?;
     let user = sqlx::query_as::<_, crate::models::User>(
-        "INSERT INTO users (name, role, phone_number, pin_hash)
-         VALUES (?, ?, ?, ?)
-         RETURNING id, name, role, phone_number, created_at, pin_hash",
+        "INSERT INTO users (name, role, phone_number, pin_hash, status)
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id, name, role, phone_number, created_at, pin_hash, status",
     )
     .bind(name.trim())
     .bind(role)
     .bind(phone)
     .bind(pin_hash)
+    .bind(status)
     .fetch_one(&mut *tx)
     .await
     .map_err(|error| match error {
@@ -53,8 +58,8 @@ pub async fn register_farmer(
         .execute(&mut *tx)
         .await?;
     } else if role == "fpo" {
-        // New FPOs start unverified until an admin checks them.
-        crate::fpo::create_org_for_manager(&mut *tx, user.id, &user.name, &user.phone_number).await?;
+        crate::fpo::create_org_for_manager(&mut *tx, user.id, &user.name, &user.phone_number, &fpo)
+            .await?;
     } else {
         sqlx::query("INSERT INTO buyers (id, trust_score, is_verified) VALUES (?, 5.0, 0)")
             .bind(user.id)
@@ -71,19 +76,36 @@ pub async fn authenticate_farmer(
     pin: &str,
     role: &str,
 ) -> Result<crate::models::User, AppError> {
+    let wrong = || {
+        AppError::Unauthorized("No account was found for this role, phone number, or PIN".into())
+    };
     let user = sqlx::query_as::<_, crate::models::User>(
-        "SELECT id, name, role, phone_number, created_at, pin_hash
-         FROM users WHERE phone_number = ? AND role = ?
-         AND pin_hash = ?",
+        "SELECT id, name, role, phone_number, created_at, pin_hash, status
+         FROM users WHERE phone_number = ? AND role = ?",
     )
     .bind(phone)
     .bind(role)
-    .bind(hash_pin(pin))
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| {
-        AppError::Unauthorized("No account was found for this role, phone number, or PIN".into())
-    })?;
+    .ok_or_else(wrong)?;
+    let stored = user.pin_hash.as_deref().ok_or_else(wrong)?;
+    let (ok, needs_rehash) = crate::auth::verify_pin(pin, stored);
+    if !ok {
+        return Err(wrong());
+    }
+    if user.status == "suspended" {
+        return Err(AppError::Forbidden(
+            "This account is suspended. Contact the AgriSense administrator.".into(),
+        ));
+    }
+    // Upgrade old unsalted SHA-256 hashes to argon2 on successful sign-in.
+    if needs_rehash {
+        sqlx::query("UPDATE users SET pin_hash = ? WHERE id = ?")
+            .bind(crate::auth::hash_pin(pin))
+            .bind(user.id)
+            .execute(pool)
+            .await?;
+    }
     Ok(user)
 }
 
@@ -91,42 +113,6 @@ pub async fn get_market(pool: &SqlitePool, market_id: i64) -> Result<Option<Mark
     sqlx::query_as::<_, Market>("SELECT id, name, location FROM markets WHERE id = ?")
         .bind(market_id)
         .fetch_optional(pool)
-        .await
-}
-
-pub async fn get_lots_for_user(
-    pool: &SqlitePool,
-    user_id: i64,
-    role: &str,
-) -> Result<Vec<Lot>, sqlx::Error> {
-    let query = if role == "farmer" {
-        "SELECT id, farmer_id, crop_id, quantity_quintals, expected_quality, status FROM lots WHERE farmer_id = ? ORDER BY created_at DESC"
-    } else {
-        "SELECT id, farmer_id, crop_id, quantity_quintals, expected_quality, status FROM lots WHERE status = 'open' ORDER BY created_at DESC"
-    };
-    sqlx::query_as::<_, Lot>(query)
-        .bind(user_id)
-        .fetch_all(pool)
-        .await
-}
-
-pub async fn get_offers_for_user(
-    pool: &SqlitePool,
-    user_id: i64,
-    role: &str,
-) -> Result<Vec<Offer>, sqlx::Error> {
-    let query = if role == "buyer" {
-        "SELECT o.id, o.lot_id, o.buyer_id, o.price_offered, o.status, o.created_by_role FROM offers o WHERE o.buyer_id = ? ORDER BY o.id DESC"
-    } else {
-        "SELECT o.id, o.lot_id, o.buyer_id, o.price_offered, o.status, o.created_by_role
-         FROM offers o
-         JOIN lots l ON l.id = o.lot_id
-         WHERE l.farmer_id = ? AND o.created_by_role = 'buyer'
-         ORDER BY o.id DESC"
-    };
-    sqlx::query_as::<_, Offer>(query)
-        .bind(user_id)
-        .fetch_all(pool)
         .await
 }
 
@@ -148,8 +134,9 @@ pub async fn create_buyer_demand(
     .bind(&req.required_quality)
     .bind(&req.delivery_location)
     .bind(&req.required_by)
-    .fetch_one(pool)
+    .fetch_all(pool)
     .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))
 }
 
 // Default 50/qtl if the route isn't in the table.
@@ -208,15 +195,72 @@ pub async fn get_crops(pool: &SqlitePool) -> Result<Vec<Crop>, sqlx::Error> {
 fn estimate_perishability_days(name: &str) -> i64 {
     let n = name.to_lowercase();
     let has = |keys: &[&str]| keys.iter().any(|k| n.contains(k));
-    if has(&["leaf", "coriander", "methi", "spinach", "palak", "mint", "flower", "mushroom", "fish", "milk", "curry"]) {
+    if has(&[
+        "leaf",
+        "coriander",
+        "methi",
+        "spinach",
+        "palak",
+        "mint",
+        "flower",
+        "mushroom",
+        "fish",
+        "milk",
+        "curry",
+    ]) {
         2
-    } else if has(&["tomato", "brinjal", "okra", "bhindi", "ladies", "gourd", "cucumber", "capsicum", "chilli green",
-        "green chilli", "beans", "peas", "cauliflower", "cabbage", "banana", "grapes", "papaya", "mango", "guava",
-        "strawberry", "lemon", "drumstick", "tinda", "pumpkin", "radish", "carrot", "beetroot"]) {
+    } else if has(&[
+        "tomato",
+        "brinjal",
+        "okra",
+        "bhindi",
+        "ladies",
+        "gourd",
+        "cucumber",
+        "capsicum",
+        "chilli green",
+        "green chilli",
+        "beans",
+        "peas",
+        "cauliflower",
+        "cabbage",
+        "banana",
+        "grapes",
+        "papaya",
+        "mango",
+        "guava",
+        "strawberry",
+        "lemon",
+        "drumstick",
+        "tinda",
+        "pumpkin",
+        "radish",
+        "carrot",
+        "beetroot",
+    ]) {
         7
-    } else if has(&["apple", "orange", "pomegranate", "mosambi", "pineapple", "sweet lime", "water melon", "watermelon", "musk"]) {
+    } else if has(&[
+        "apple",
+        "orange",
+        "pomegranate",
+        "mosambi",
+        "pineapple",
+        "sweet lime",
+        "water melon",
+        "watermelon",
+        "musk",
+    ]) {
         21
-    } else if has(&["onion", "potato", "garlic", "ginger", "sweet potato", "yam", "colacasia", "tapioca"]) {
+    } else if has(&[
+        "onion",
+        "potato",
+        "garlic",
+        "ginger",
+        "sweet potato",
+        "yam",
+        "colacasia",
+        "tapioca",
+    ]) {
         45
     } else {
         // Grains, pulses, oilseeds, spices, fibre and other dry produce.
@@ -243,8 +287,9 @@ pub async fn find_or_create_crop(pool: &SqlitePool, name: &str) -> Result<Crop, 
     )
     .bind(name)
     .bind(estimate_perishability_days(name))
-    .fetch_one(pool)
+    .fetch_all(pool)
     .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))
 }
 
 pub async fn get_lot(pool: &SqlitePool, lot_id: i64) -> Result<Option<Lot>, sqlx::Error> {
@@ -271,31 +316,66 @@ pub async fn create_lot(
     .bind(req.crop_id)
     .bind(req.quantity_quintals)
     .bind(&req.expected_quality)
-    .fetch_one(pool)
-    .await
+    // fetch_all steps the statement to completion so the insert is committed
+    // before the next query (fetch_one can leave it open on another connection).
+    .fetch_all(pool)
+    .await?
+    .pop()
+    .ok_or(sqlx::Error::RowNotFound)
 }
 
-// Match on crop, quantity, quality, and deadline; best buyers first.
+/// Candidate buyer requirements for a lot: same crop, open, deadline not passed,
+/// buyer account active. Ranking happens in `services::matcher`.
 pub async fn get_matching_demands(
     pool: &SqlitePool,
     lot: &Lot,
-) -> Result<Vec<BuyerDemand>, sqlx::Error> {
-    sqlx::query_as::<_, BuyerDemand>(
-        "SELECT d.id, d.buyer_id, d.crop_id, d.min_quantity, d.max_price,
-                d.required_quality, d.delivery_location, d.required_by
+) -> Result<Vec<crate::services::matcher::Candidate>, sqlx::Error> {
+    type Row = (
+        i64,
+        i64,
+        String,
+        i64,
+        f64,
+        f64,
+        String,
+        String,
+        String,
+        i64,
+        f64,
+        f64,
+    );
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT d.id, d.buyer_id, u.name, d.crop_id, d.min_quantity, d.max_price,
+                d.required_quality, d.delivery_location, d.required_by,
+                COALESCE(b.is_verified, 0), CAST(COALESCE(b.trust_score, 0) AS REAL),
+                CAST(julianday(d.required_by) - julianday('now') AS REAL)
          FROM buyer_demand d
-         JOIN buyers b ON d.buyer_id = b.id
-         WHERE d.crop_id = ?
-           AND d.min_quantity <= ?
-           AND d.required_quality = ?
-           AND d.required_by >= datetime('now')
-         ORDER BY b.trust_score DESC, d.max_price DESC",
+         JOIN users u ON u.id = d.buyer_id
+         LEFT JOIN buyers b ON b.id = d.buyer_id
+         WHERE d.crop_id = ? AND d.status = 'open'
+           AND d.required_by >= datetime('now') AND u.status = 'active'",
     )
     .bind(lot.crop_id)
-    .bind(lot.quantity_quintals)
-    .bind(&lot.expected_quality)
     .fetch_all(pool)
-    .await
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| crate::services::matcher::Candidate {
+            demand_id: r.0,
+            buyer_id: r.1,
+            buyer_name: r.2,
+            crop_id: r.3,
+            min_quantity: r.4,
+            max_price: r.5,
+            required_quality: r.6,
+            delivery_location: r.7,
+            required_by: r.8,
+            verified: r.9 == 1,
+            trust_score: r.10,
+            freight_per_quintal: None,
+            days_left: r.11,
+        })
+        .collect())
 }
 
 pub async fn get_buyer_prices(
@@ -324,22 +404,6 @@ pub async fn get_buyer_prices(
     .await
 }
 
-pub async fn delete_buyer_demand(
-    pool: &SqlitePool,
-    buyer_id: i64,
-    demand_id: i64,
-) -> Result<(), AppError> {
-    let result = sqlx::query("DELETE FROM buyer_demand WHERE id = ? AND buyer_id = ?")
-        .bind(demand_id)
-        .bind(buyer_id)
-        .execute(pool)
-        .await?;
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound("Requirement not found".into()));
-    }
-    Ok(())
-}
-
 pub async fn get_buyer_demands_for_user(
     pool: &SqlitePool,
     buyer_id: i64,
@@ -356,194 +420,6 @@ pub async fn get_buyer_demands_for_user(
          ORDER BY d.id DESC",
     )
     .bind(buyer_id)
-    .fetch_all(pool)
-    .await
-}
-
-pub async fn create_offer(
-    pool: &SqlitePool,
-    actor_id: i64,
-    actor_role: &str,
-    req: &CreateOfferRequest,
-) -> Result<Offer, AppError> {
-    let lot = sqlx::query_as::<_, Lot>(
-        "SELECT id, farmer_id, crop_id, quantity_quintals, expected_quality, status
-         FROM lots WHERE id = ?",
-    )
-    .bind(req.lot_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Lot not found".into()))?;
-    let buyer_id = if actor_role == "buyer" {
-        actor_id
-    } else {
-        if lot.farmer_id != actor_id {
-            return Err(AppError::Unauthorized(
-                "Only the lot owner can send a farmer offer".into(),
-            ));
-        }
-        req.buyer_id
-            .ok_or_else(|| AppError::BadRequest("buyer_id is required for a farmer offer".into()))?
-    };
-    sqlx::query_as::<_, Offer>(
-        "INSERT INTO offers (lot_id, buyer_id, price_offered, status, created_by_role)
-         VALUES (?, ?, ?, 'pending', ?)
-         RETURNING id, lot_id, buyer_id, price_offered, status, created_by_role",
-    )
-    .bind(req.lot_id)
-    .bind(buyer_id)
-    .bind(req.price_offered)
-    .bind(actor_role)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::from)
-}
-
-// Accepts a pending offer, closes the lot, creates the transaction.
-pub async fn accept_offer(
-    pool: &SqlitePool,
-    offer_id: i64,
-    actor_id: i64,
-    actor_role: &str,
-) -> Result<Transaction, AppError> {
-    let mut tx = pool.begin().await?;
-
-    let offer = sqlx::query_as::<_, Offer>(
-        "SELECT id, lot_id, buyer_id, price_offered, status, created_by_role FROM offers WHERE id = ?",
-    )
-    .bind(offer_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Offer not found".to_string()))?;
-
-    if offer.status != "pending" {
-        return Err(AppError::BadRequest(format!(
-            "Offer is already '{}' — only pending offers can be accepted",
-            offer.status
-        )));
-    }
-
-    let lot = sqlx::query_as::<_, Lot>(
-        "SELECT id, farmer_id, crop_id, quantity_quintals, expected_quality, status
-         FROM lots WHERE id = ?",
-    )
-    .bind(offer.lot_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    if actor_role == "farmer" && lot.farmer_id != actor_id {
-        return Err(AppError::Unauthorized(
-            "Only the farmer who owns this lot can accept offers".to_string(),
-        ));
-    }
-    if actor_role == "buyer" && offer.buyer_id != actor_id {
-        return Err(AppError::Unauthorized(
-            "Only the buyer who received this offer can accept it".to_string(),
-        ));
-    }
-    let expected_acceptor = if offer.created_by_role == "buyer" {
-        "farmer"
-    } else {
-        "buyer"
-    };
-    if actor_role != expected_acceptor {
-        return Err(AppError::Unauthorized(format!(
-            "This offer was created by the {0}; only the {1} can accept it",
-            offer.created_by_role, expected_acceptor
-        )));
-    }
-
-    let update_result =
-        sqlx::query("UPDATE offers SET status = 'accepted' WHERE id = ? AND status = 'pending'")
-            .bind(offer_id)
-            .execute(&mut *tx)
-            .await?;
-
-    // Catch races where two requests accept the same offer.
-    if update_result.rows_affected() == 0 {
-        return Err(AppError::BadRequest(
-            "Offer already processed — only pending offers can be accepted".to_string(),
-        ));
-    }
-
-    sqlx::query("UPDATE lots SET status = 'sold' WHERE id = ?")
-        .bind(lot.id)
-        .execute(&mut *tx)
-        .await?;
-
-    let transaction_id = sqlx::query_scalar::<_, i64>(
-        "INSERT INTO transactions (offer_id, final_price, status)
-         VALUES (?, ?, 'completed')
-         RETURNING id",
-    )
-    .bind(offer_id)
-    .bind(offer.price_offered)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let transaction = sqlx::query_as::<_, Transaction>(
-        "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
-                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
-                buyer.name AS buyer_name, farmer.name AS farmer_name
-         FROM transactions t
-         JOIN offers o ON o.id = t.offer_id
-         JOIN lots l ON l.id = o.lot_id
-         JOIN crops c ON c.id = l.crop_id
-         JOIN users buyer ON buyer.id = o.buyer_id
-         JOIN users farmer ON farmer.id = l.farmer_id
-         WHERE t.id = ?",
-    )
-    .bind(transaction_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(transaction)
-}
-
-pub async fn get_transaction(
-    pool: &SqlitePool,
-    transaction_id: i64,
-) -> Result<Option<Transaction>, sqlx::Error> {
-    sqlx::query_as::<_, Transaction>(
-        "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
-                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
-                buyer.name AS buyer_name, farmer.name AS farmer_name
-         FROM transactions t
-         JOIN offers o ON o.id = t.offer_id
-         JOIN lots l ON l.id = o.lot_id
-         JOIN crops c ON c.id = l.crop_id
-         JOIN users buyer ON buyer.id = o.buyer_id
-         JOIN users farmer ON farmer.id = l.farmer_id
-         WHERE t.id = ?",
-    )
-    .bind(transaction_id)
-    .fetch_optional(pool)
-    .await
-}
-
-pub async fn get_transactions_for_user(
-    pool: &SqlitePool,
-    user_id: i64,
-) -> Result<Vec<Transaction>, sqlx::Error> {
-    sqlx::query_as::<_, Transaction>(
-        "SELECT t.id, t.offer_id, t.final_price, t.status, t.completed_at,
-                c.name AS crop_name, l.quantity_quintals, l.id AS lot_id,
-                CASE WHEN o.created_by_role = 'buyer' THEN 'farmer' ELSE 'buyer' END AS accepted_by_role,
-                buyer.name AS buyer_name, farmer.name AS farmer_name
-         FROM transactions t
-         JOIN offers o ON o.id = t.offer_id
-         JOIN lots l ON l.id = o.lot_id
-         JOIN crops c ON c.id = l.crop_id
-         JOIN users buyer ON buyer.id = o.buyer_id
-         JOIN users farmer ON farmer.id = l.farmer_id
-         WHERE o.buyer_id = ? OR l.farmer_id = ?
-         ORDER BY t.id DESC",
-    )
-    .bind(user_id)
-    .bind(user_id)
     .fetch_all(pool)
     .await
 }

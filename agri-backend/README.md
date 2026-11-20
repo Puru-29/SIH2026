@@ -1,0 +1,208 @@
+# AgriSense backend
+
+Rust API for the AgriSense farmer, buyer, FPO and admin portals. The React frontend is in [`smart-agri-mind-main/`](smart-agri-mind-main/); see the [root README](../README.md) for the product overview, demo logins and how to run both.
+
+## Architecture
+
+```text
+src/
+├── main.rs            # configuration, CORS, startup (migrations → seeds), route table
+├── auth.rs            # Argon2 PINs, session tokens, the AuthUser extractor
+├── handlers.rs        # auth, crops, lot creation, mandi, calculator, advisor, matching buyers
+├── market.rs          # farmer/buyer deals: lots, offers, orders, payments, forecast,
+│                      #   suppliers, messages, profile, requirements, notifications, storage
+├── fpo.rs             # FPO portal: members, contributions, bulk lots, quality, offers,
+│   └── fpo_pools.rs   #   sales, payouts, logistics, grievances; pools, joins, announcements
+├── admin.rs           # admin console, disputes, audit log, notify helpers
+├── db.rs, models.rs   # shared queries and request/response types
+├── seed.rs            # master data, admin from env, demo accounts
+├── seed_demo.rs       # idempotent demo data for every portal
+├── migrate_fix.rs     # tolerate CRLF/LF changes in migration files
+└── services/
+    ├── mandi.rs       # Mandi API client (prices cached 15 min, lists 6 h, history)
+    ├── matcher.rs     # ranks buyer requirements for a lot
+    ├── deals.rs       # offer, order-step and payment-status rules, net realisation
+    ├── forecast.rs    # moving averages, trend and outlook from daily prices
+    ├── advisor.rs     # sell now / wait / split rule engine
+    └── calculator.rs  # net realisation for the mandi calculator
+```
+
+Pure business rules live in `services/` and are unit-tested without a database. `market.rs` also has database tests that run every migration against in-memory SQLite.
+
+## Configuration
+
+Copy `.env.example` to `.env`. Every variable the backend reads:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:agri_prototype.db` | SQLite file, created on first start |
+| `PORT` | `8080` | API port (the frontend dev proxy expects `3001`) |
+| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin |
+| `ADMIN_PHONE`, `ADMIN_PIN` | none | Creates or updates the admin account; no admin exists without them |
+| `DEMO_PIN` | `1234` | PIN for seeded demo accounts that have none |
+| `MANDI_API_BASE_URL` | `https://mandi-api.onrender.com/v1` | Mandi price API (no key) |
+| `MANDI_API_STATE` | `Maharashtra` | Default state for price requests without one |
+| `PLATFORM_FEE_PERCENT` | `0` | Fee on direct deals, shown in net realisation |
+| `RUST_LOG` | `agri_backend=debug,info` | Log filter |
+
+## Authentication and roles
+
+- Sign in with phone, 4-digit PIN and role. PINs are stored with Argon2; old SHA-256 hashes are upgraded on the next login.
+- Login returns an opaque token. Send it as `Authorization: Bearer <token>`. Only its SHA-256 hash is stored (`sessions` table); sessions last 30 days, and `POST /api/auth/logout` ends one.
+- Roles: `farmer`, `buyer`, `fpo`, `admin`. Account status: `active`, `pending` (new FPOs until the admin approves) or `suspended` (blocked with 403).
+- Wrong role → **403**; missing or expired token → **401**. Every record is checked against its owner: a buyer sees only their own negotiation on a lot, an FPO only its own pools and members, and only the two parties (or the admin) can open an order.
+
+## Deal rules
+
+- **Lot status:** `open` → `sold`, or `withdrawn` (by the farmer) or `cancelled` (by the admin). "Offer received" is worked out from pending offers, so it can never go stale.
+- **Offers:** `pending` → `accepted`, `rejected`, `countered` or `cancelled`. Only the side that did not make an offer can accept, reject or counter it. A counter is a new offer whose `parent_offer_id` points to the one it answers. Accepting closes the lot and rejects the other pending offers on it (with a notification).
+- **Orders:** start as `accepted`, then `picked_up` → `in_transit` → `delivered` (stored in `order_events`; steps can be skipped but never undone). The farmer records pickup and transit; either side can record delivery.
+- **Payments:** the buyer records each payment (`marked_paid`); the farmer confirms it (`confirmed`) or reports it `not_received`. Order payment status is `pending`, `awaiting_confirmation`, `partially_paid` or `paid`. A delivered and fully paid order becomes `completed`.
+- **Net realisation:** price × quantity − freight (route table, pickup state → delivery state) − platform fee.
+- **Buyer ranking** (`services/matcher.rs`): price 30%, trust 20%, freight 15%, quality 15%, quantity 10%, deadline 10%, with plain reasons for each buyer.
+- **FPO payouts:** each member's share = sale amount × (quantity × grade factor) / total, grade factors A 1.0, B 0.95, C 0.85; freight, storage and handling are shared by quantity; commission is a % of the share.
+
+## Forecast
+
+`GET /api/forecast` and `GET /api/lots/:id/signals` use daily mandi prices stored in `mandi_price_history`. Prices are saved whenever live prices are fetched and topped up from the Mandi API history at most every 6 hours, so the history keeps growing. The outlook blends today's price with the 7-day average, adds the 30-day least-squares trend (damped, and capped at ±2% a day), and shows a widening range. It needs at least 3 days of prices. Signals also include open buyer demand vs supply, shelf life, freight to the best-paying buyer and pending offers. Everything is labelled "Trend-based estimate, not a guarantee".
+
+## Notifications
+
+Created by the backend in `user_notifications` with a `type`: `offer`, `counter`, `accepted`, `rejected`, `matching_lot` (a new lot matches a buyer's requirement), `order`, `payment`, `message` (at most one unread per conversation), `dispute`, `admin`, `general`.
+
+## API reference
+
+All paths are under the backend origin. "Auth" means a Bearer token is required; the role column lists who may call it.
+
+### Accounts and profile
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `/health` | public | Health and version |
+| POST | `/api/auth/register` | public | Register a farmer, buyer or FPO (FPOs start `pending`) |
+| POST | `/api/auth/login` | public | Sign in; returns a token |
+| POST | `/api/auth/logout` | any | End this session |
+| GET | `/api/auth/me` | any | Current user, role and status |
+| GET, PATCH | `/api/me` | any | Profile: name, location, urgency, preferred language, stats |
+
+### Crops, prices and advice
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET, POST | `/api/crops` | GET public, POST auth | List crops; find-or-create a crop by name |
+| GET | `/api/mandi/prices?state=&commodity=` | public | Live mandi prices (also saved to price history) |
+| GET | `/api/mandi/states`, `/api/mandi/commodities?state=` | public | Mandi API lists |
+| GET | `/api/forecast?crop=&state=&horizon=` | auth | Trend-based price outlook and drivers |
+| GET | `/api/storage-options` | auth | Mandi storage rates and verified FPO warehouses |
+| POST | `/api/calculator/net-realisation` | public | Net realisation at a mandi |
+| POST | `/api/advisor/smart-sale` | public | Sell now / wait / split |
+| GET | `/api/buyers/prices` | public | Open buyer requirements |
+
+### Lots and offers
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `/api/lots` | farmer, buyer | Farmer: own lots. Buyer: open lots to bid on |
+| POST | `/api/lots` | farmer, fpo | Create a lot (tells buyers with a matching requirement) |
+| GET | `/api/lots/:id` | owner, buyer, admin | Lot and negotiation history |
+| PATCH | `/api/lots/:id` | owner | Edit quantity or quality while open |
+| POST | `/api/lots/:id/withdraw` | owner | Take the lot off the market; closes pending offers |
+| GET | `/api/lots/:id/matching-buyers` | owner, admin | Ranked buyer requirements with freight and reasons |
+| GET | `/api/lots/:id/signals` | owner, admin | Price, demand, shelf-life and freight signals plus advisor inputs |
+| GET | `/api/offers` | farmer, buyer | Offers on my lots / that I am part of |
+| POST | `/api/offers` | buyer, farmer | Bid on a lot, or offer a lot to a buyer (`buyer_id`) |
+| POST | `/api/offers/:id/accept` | other side | Accept; creates an order |
+| POST | `/api/offers/:id/reject` | other side | Decline, optional `reason` |
+| POST | `/api/offers/:id/counter` | other side | Counter with `{ price }` |
+| POST | `/api/offers/:id/withdraw` | offer's sender | Withdraw a pending offer |
+
+### Orders, tracking and payments
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `/api/transactions` | farmer, buyer | My orders with order and payment status |
+| GET | `/api/transactions/:id` | parties, admin | Order, events, payments, net realisation, counterpart |
+| POST | `/api/transactions/:id/events` | parties | Next step: `picked_up`, `in_transit`, `delivered` |
+| POST | `/api/transactions/:id/payments` | buyer | Record a payment `{ amount, method, reference }` |
+| POST | `/api/payments/:id/confirm` | farmer | Payment received |
+| POST | `/api/payments/:id/not-received` | farmer | Payment did not arrive |
+| POST | `/api/disputes` | parties | Raise a dispute on an order |
+| GET | `/api/disputes/mine` | any | My disputes |
+
+### Buyer requirements and suppliers
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET, POST | `/api/buyer-demands` | buyer | My requirements (with matching-lot counts); create one |
+| PATCH, DELETE | `/api/buyer-demands/:id` | owner | Edit an open requirement; delete it |
+| POST | `/api/buyer-demands/:id/fulfil` | owner | Mark fulfilled |
+| GET | `/api/buyer-demands/:id/matches` | owner | Open lots that fit, with quantity/quality checks and freight |
+| GET | `/api/suppliers?crop=&location=&q=` | buyer, admin | Farmers and verified FPOs with open produce |
+| GET | `/api/suppliers/:kind/:id` | buyer, admin | One supplier (`farmer` or `fpo`) and their open lots |
+
+### Messages and notifications
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `/api/conversations` | farmer, buyer, fpo | Conversations with last message and unread count |
+| GET, POST | `/api/conversations/:user_id/messages` | farmer, buyer, fpo | Read a thread (marks it read) / send `{ body, lot_id?, transaction_id? }` |
+| GET | `/api/notifications` | any | Latest 100 notifications |
+| POST | `/api/notifications/:id/read`, `/api/notifications/read-all` | any | Mark read |
+| GET | `/api/announcements` | any | FPO and admin announcements for me |
+
+### FPO portal (`fpo` role, verified FPO; data limited to the caller's FPO)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET, PUT | `/api/fpo/org` | Organisation profile |
+| GET | `/api/fpo/dashboard`, `/api/fpo/notifications` | Dashboard and alerts |
+| GET, POST / GET, PUT | `/api/fpo/members`, `/api/fpo/members/:id` | Members (optional farmer login) |
+| GET, POST / POST | `/api/fpo/contributions`, `/api/fpo/contributions/:id/:action` | Direct contributions, approve or reject |
+| GET, POST / GET, POST | `/api/fpo/pools`, `/api/fpo/pools/:id` (+ `/contributions`, `/contributions/:cid/intake`, `/action/:action`) | Crop pools: pledge, intake by grade, open, lock, list, cancel |
+| GET, POST / GET | `/api/fpo/lots`, `/api/fpo/lots/:id` (+ `/warehouse`, `/quality`, `/matches`, `/advice`) | Bulk lots, storage, grading, buyer matches, sell advice |
+| GET | `/api/fpo/quality`, `/api/fpo/buyers`, `/api/fpo/demand` | Quality records, buyers, demand forecast |
+| GET, POST / POST | `/api/fpo/offers`, `/api/fpo/offers/:id/respond` | Negotiate with buyers |
+| GET / POST, PUT | `/api/fpo/sales/:id` (+ `/payments`, `/expenses`, `/distribution`) | Sales, payments, expenses, payout split |
+| POST | `/api/fpo/payouts/:id/pay` | Mark a member payout paid |
+| GET, POST | `/api/fpo/warehouses`, `/api/fpo/transporters`, `/api/fpo/shipments` (+ `/:id/status`) | Logistics |
+| GET, POST | `/api/fpo/grievances` (+ `/:id/status`, `/:id/documents`), `/api/fpo/documents/:id` | Grievances and files |
+| GET | `/api/fpo/reports/:kind`, `/api/fpo/audit` | Reports (CSV) and activity log |
+| GET / POST | `/api/fpo/join-requests`, `/api/fpo/join-requests/:id/:action` | Farmers asking to join |
+| GET, POST | `/api/fpo/announcements` | Announcements to members |
+
+Farmer side of FPOs: `GET /api/fpos` (find FPOs), `POST /api/fpos/:id/join-requests`, `GET /api/fpo/my`, `GET /api/fpo/my/pools`, `POST /api/fpo/my/pools/:id/pledge`, `POST /api/fpo/my/grievances`.
+Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POST /api/fpo-market/offers/:id/respond`.
+
+### Admin (`admin` role; every change is written to the audit log)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/admin/overview` | Platform metrics and charts |
+| GET | `/api/admin/verifications` | FPOs and buyers waiting |
+| POST | `/api/admin/fpos/:id/decision`, `/api/admin/buyers/:id/decision` | Approve, or send back / decline with a reason |
+| POST | `/api/admin/buyers/:id/trust` | Set a buyer's trust score |
+| GET / GET / POST | `/api/admin/users`, `/api/admin/users/:id`, `/api/admin/users/:id/status` | Users, detail, suspend or reactivate |
+| GET | `/api/admin/market/{lots,offers,demands,transactions,flags}` | Marketplace monitoring and suspicious activity |
+| POST | `/api/admin/lots/:id/cancel`, `/api/admin/offers/:id/cancel`, `/api/admin/fpo-offers/:id/cancel` | Cancel with a reason |
+| GET / GET / POST | `/api/admin/disputes`, `/api/admin/disputes/:id`, `/api/admin/disputes/:id/status` | Disputes |
+| GET | `/api/admin/intel/supply-demand`, `/api/admin/intel/prices` | Market intelligence |
+| GET, POST / PUT, DELETE | `/api/admin/master/:table`, `/api/admin/master/:table/:id` | Crops, markets, transport and storage rates |
+| GET, POST | `/api/admin/announcements` | Advisories |
+| GET | `/api/admin/audit` | Audit log |
+
+Lists in the admin API are paginated: `{ items, total, page, limit, pages }`.
+
+## Database and demo data
+
+- Migrations in `migrations/` run on start. **Never edit an applied migration**; see [migrations/README.md](migrations/README.md).
+- `seed.rs` loads master data, the admin (from env) and demo accounts. `seed_demo.rs` adds demo data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
+- Delete the database file to start over.
+
+## Tests
+
+```sh
+cargo test                  # rules, ranking, forecast, payouts, and database flows
+cargo clippy --all-targets  # expected: no warnings
+```
+
+The database tests in `market.rs` cover counter-offers ending in an order, rejecting and withdrawing, payment status from pending to paid, supplier listing and filters, messages, and notifications.

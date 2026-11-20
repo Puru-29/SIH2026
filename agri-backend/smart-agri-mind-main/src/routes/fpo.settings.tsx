@@ -37,6 +37,7 @@ function SettingsPage() {
         state: f.state ?? "",
         contact_phone: f.contact_phone ?? null,
         commission_pct: Number(f.commission_pct ?? 0),
+        primary_crops: f.primary_crops ?? "",
       }),
     { success: "Settings saved" },
   );
@@ -106,6 +107,14 @@ function SettingsPage() {
                 hint="Deducted from each sale before farmers are paid"
               />
             </div>
+            <Input
+              id="st-crops"
+              label="Primary crops"
+              value={f.primary_crops ?? ""}
+              onChange={(e) => setF({ ...f, primary_crops: e.target.value })}
+              hint="Used to show you matching buyer demand"
+              placeholder="Wheat, Onion, Soybean"
+            />
             <div className="flex justify-end">
               <Btn
                 type="submit"

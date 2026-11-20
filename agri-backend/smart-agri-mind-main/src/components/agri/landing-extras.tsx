@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Lock, MapPin, TrendingDown, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, Lock, MapPin } from "lucide-react";
 import { Panel, Pill } from "./ui-bits";
 import { cn } from "@/lib/utils";
 import { inr, LOCATIONS } from "@/services";
@@ -8,54 +8,53 @@ import {
   calculateNetRealization,
   getFaqs,
   getTestimonials,
-  getTicker,
   getTrustMetrics,
 } from "@/services";
+import { useFarmLocation } from "@/lib/location-context";
+import { useAllMarketPrices } from "@/hooks/use-market-prices";
+import type { BackendLiveMandiPrice } from "@/services/api-client";
 import { useI18n } from "@/lib/i18n";
 
+/** Live mandi prices for the visitor's state (one quote per crop); hidden when unavailable. */
 export function PriceTicker() {
   const { t } = useI18n();
-  const quotes = getTicker();
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 3000);
-    return () => clearInterval(id);
-  }, []);
-
-  const live = quotes.map((q, i) => {
-    const wobble = Math.sin((tick + i) / 2) * 0.3;
-    return { ...q, price: Math.round((q.price + wobble) * 10) / 10 };
-  });
+  const { location } = useFarmLocation();
+  const prices = useAllMarketPrices(location.state);
+  const byCrop = new Map<string, BackendLiveMandiPrice>();
+  for (const p of prices.data ?? []) {
+    const cur = byCrop.get(p.crop_name);
+    if (p.modal_price > 0 && (!cur || p.modal_price > cur.modal_price)) byCrop.set(p.crop_name, p);
+  }
+  const quotes = [...byCrop.values()].slice(0, 12);
+  if (quotes.length === 0) return null;
 
   return (
     <div className="border-y border-border bg-secondary/60">
       <div className="mx-auto flex max-w-6xl items-center gap-3 overflow-hidden px-6 py-2.5">
         <Pill tone="solid" className="shrink-0">
-          {t("Live mandi")}
+          {t("Live mandi")} · {location.state}
         </Pill>
-        <div className="flex flex-1 gap-8 overflow-x-auto whitespace-nowrap text-sm [scrollbar-width:none]">
-          {live.map((q) => (
-            <span key={`${q.crop}-${q.mandi}`} className="flex items-center gap-2">
-              <span className="font-medium">{t(q.crop)}</span>
-              <span className="text-muted-foreground">{q.mandi}</span>
-              <span className="font-medium">{inr(q.price)}/kg</span>
-              <span
-                className={cn(
-                  "flex items-center gap-1 text-xs",
-                  q.change >= 0 ? "text-primary" : "text-clay",
-                )}
-              >
-                {q.change >= 0 ? (
-                  <TrendingUp className="h-3 w-3" />
-                ) : (
-                  <TrendingDown className="h-3 w-3" />
-                )}
-                {q.change > 0 ? "+" : ""}
-                {q.change}%
-              </span>
-            </span>
-          ))}
+        {/* Two copies of the list slide left together, so the loop has no gap. */}
+        <div className="ticker-viewport relative flex-1 overflow-hidden text-sm">
+          <div
+            className="ticker-track flex w-max whitespace-nowrap"
+            style={{ animationDuration: `${Math.max(20, quotes.length * 5)}s` }}
+          >
+            {[0, 1].map((copy) => (
+              <div key={copy} className="flex shrink-0 gap-8 pr-8" aria-hidden={copy === 1}>
+                {quotes.map((q) => (
+                  <span key={q.id} className="flex items-center gap-2">
+                    <span className="font-medium">{t(q.crop_name)}</span>
+                    <span className="text-muted-foreground">{q.market}</span>
+                    <span className="font-medium">{inr(q.price_per_kg)}/kg</span>
+                    <span className="text-xs text-muted-foreground">
+                      {inr(q.min_price / 100)}–{inr(q.max_price / 100)} · {q.date.slice(5, 10)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -158,7 +157,9 @@ export function NetCalculator() {
               <dd>{inr(result.headline)}/kg</dd>
             </div>
             <div className="flex justify-between border-b border-primary-foreground/15 pb-3">
-              <dt className="text-primary-foreground/70">{t("Transport")} ({result.km} km)</dt>
+              <dt className="text-primary-foreground/70">
+                {t("Transport")} ({result.km} km)
+              </dt>
               <dd>− {inr(result.freightPerKg)}/kg</dd>
             </div>
             <div className="flex justify-between border-b border-primary-foreground/15 pb-3">
@@ -220,7 +221,8 @@ export function TrustMetrics() {
         ))}
       </div>
       <p className="mx-auto mt-10 flex max-w-6xl items-center gap-2 px-6 text-xs text-primary-foreground/65">
-        <Lock className="h-3.5 w-3.5" /> {t("Bank details are stored on your device in this demo — no data leaves the browser.")}
+        <Lock className="h-3.5 w-3.5" />{" "}
+        {t("Bank details are stored on your device in this demo — no data leaves the browser.")}
       </p>
     </section>
   );
@@ -249,9 +251,7 @@ export function FaqSection() {
                   className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")}
                 />
               </button>
-              {isOpen ? (
-                <p className="px-6 pb-6 text-sm text-muted-foreground">{t(f.a)}</p>
-              ) : null}
+              {isOpen ? <p className="px-6 pb-6 text-sm text-muted-foreground">{t(f.a)}</p> : null}
             </div>
           );
         })}

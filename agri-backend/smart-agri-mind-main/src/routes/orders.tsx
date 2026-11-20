@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   CheckCircle2,
+  ChevronDown,
   Handshake,
   IndianRupee,
   Loader2,
@@ -13,12 +14,17 @@ import {
 } from "lucide-react";
 import { PortalLayout } from "@/components/agri/portal-layout";
 import { Metric, PageHeader, Panel, Pill } from "@/components/agri/ui-bits";
-import { inr, kg } from "@/services";
+import { inr, kg } from "@/lib/agri";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { cropEmoji } from "@/lib/crop-catalog";
 import { getSession } from "@/services/session";
-import { useTransactions, type BackendTransaction } from "@/hooks/use-transactions";
+import { OrderDispute } from "@/components/agri/order-dispute";
+import { useOrderDetail, useTransactions, type BackendTransaction } from "@/hooks/use-transactions";
+import { MessageLink, OrderStatusPill, PaymentStatusPill } from "@/components/agri/deal-ui";
+import { ORDER_LABEL } from "@/lib/deal-format";
+import { OrderPayments, OrderTimeline } from "@/components/agri/order-ui";
+import { Loading } from "@/components/fpo/fpo-ui";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({
@@ -252,15 +258,15 @@ function OrdersPanel({
   );
 }
 
+const STEPS = ["accepted", "picked_up", "in_transit", "delivered"] as const;
+
 function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "buyer" }) {
   const { t } = useI18n();
-  const completed = tx.status === "completed";
+  const [open, setOpen] = useState(false);
+  const detail = useOrderDetail(open ? tx.id : undefined);
   const counterparty = myRole === "farmer" ? tx.buyer_name : tx.farmer_name;
-  const steps = [
-    { label: t("Offer accepted"), done: true },
-    { label: t("Order created"), done: true },
-    { label: t("Completed"), done: completed },
-  ];
+  const counterpartyId = myRole === "farmer" ? tx.buyer_id : tx.farmer_id;
+  const reached = STEPS.indexOf(tx.order_status ?? "accepted");
 
   return (
     <li className="p-5 transition-colors hover:bg-secondary/40">
@@ -276,9 +282,10 @@ function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "
                 · {kg(Math.round(tx.quantity_quintals * 100))}
               </span>
             </p>
-            <Pill tone={completed ? "green" : "amber"}>
-              {completed ? t("Completed") : t(tx.status)}
-            </Pill>
+            <div className="flex flex-wrap gap-1.5">
+              <OrderStatusPill status={tx.order_status} />
+              <PaymentStatusPill status={tx.payment_status} />
+            </div>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t("Order")} #{tx.id} · LOT-{tx.lot_id} ·{" "}
@@ -301,32 +308,64 @@ function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "
           </div>
 
           <ol className="mt-4 flex items-center gap-2" aria-label={t("Order progress")}>
-            {steps.map((step, i) => (
-              <li key={step.label} className="flex flex-1 items-center gap-2">
-                <span
-                  className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
-                    step.done
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-card",
+            {STEPS.map((step, i) => {
+              const done = i <= reached;
+              return (
+                <li key={step} className="flex flex-1 items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+                      done ? "bg-primary text-primary-foreground" : "border border-border bg-card",
+                    )}
+                  >
+                    {done && <CheckCircle2 className="h-3.5 w-3.5" />}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[11px]",
+                      done ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {t(ORDER_LABEL[step] ?? step)}
+                  </span>
+                  {i < STEPS.length - 1 && (
+                    <span className={cn("h-px flex-1", done ? "bg-primary/50" : "bg-border")} />
                   )}
-                >
-                  {step.done && <CheckCircle2 className="h-3.5 w-3.5" />}
-                </span>
-                <span
-                  className={cn(
-                    "text-[11px]",
-                    step.done ? "text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {step.label}
-                </span>
-                {i < steps.length - 1 && (
-                  <span className={cn("h-px flex-1", step.done ? "bg-primary/50" : "bg-border")} />
-                )}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground"
+            >
+              {t("Track & pay")}
+              <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+            </button>
+            <MessageLink
+              userId={counterpartyId}
+              label={myRole === "farmer" ? "Message buyer" : "Message farmer"}
+            />
+          </div>
+
+          {open && (
+            <div className="mt-4 space-y-5 rounded-2xl border border-border p-4">
+              {detail.isLoading ? (
+                <Loading />
+              ) : detail.data ? (
+                <>
+                  <OrderTimeline detail={detail.data} />
+                  <OrderPayments detail={detail.data} />
+                </>
+              ) : detail.error ? (
+                <p className="text-sm text-destructive">{detail.error.message}</p>
+              ) : null}
+            </div>
+          )}
+          <OrderDispute transactionId={tx.id} />
         </div>
       </div>
     </li>

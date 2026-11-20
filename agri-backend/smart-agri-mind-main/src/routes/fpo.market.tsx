@@ -28,6 +28,10 @@ import {
 } from "@/components/fpo/fpo-ui";
 
 export const Route = createFileRoute("/fpo/market")({
+  validateSearch: (search: Record<string, unknown>): { lot?: number } => {
+    const lot = Number(search["lot"]);
+    return Number.isFinite(lot) && lot > 0 ? { lot } : {};
+  },
   component: MarketPage,
 });
 
@@ -45,7 +49,8 @@ function MarketPage() {
   const lots = useFpoQuery(["lots"], fpoApi.lots);
   const org = useFpoQuery(["org"], fpoApi.org);
   const sellable = lots.data?.filter((l) => l.available_quintals > 0) ?? [];
-  const [lotId, setLotId] = useState("");
+  const search = Route.useSearch();
+  const [lotId, setLotId] = useState(search.lot ? String(search.lot) : "");
   const lot = sellable.find((l) => l.id === Number(lotId)) ?? sellable[0];
 
   return (

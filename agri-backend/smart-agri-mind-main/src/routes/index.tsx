@@ -93,7 +93,9 @@ function Landing() {
             <span className="text-primary italic">{tr("Know when to sell.")}</span>
           </h1>
           <p className="mt-6 max-w-md text-base text-muted-foreground">
-            {tr("AgriSense reads mandi arrivals, buyer demand, transport cost and payment reliability, then tells you exactly what to do with each crop lot — sell now, hold, or split.")}
+            {tr(
+              "AgriSense reads mandi arrivals, buyer demand, transport cost and payment reliability, then tells you exactly what to do with each crop lot — sell now, hold, or split.",
+            )}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
@@ -150,8 +152,8 @@ function Landing() {
           {tr("Market information alone isn't enough")}
         </h2>
         <p className="mt-4 max-w-2xl text-muted-foreground">
-          Farmers already receive prices on SMS. What they lack is the arithmetic that turns a
-          price into a profit — and the confidence to act on it in time.
+          Farmers already receive prices on SMS. What they lack is the arithmetic that turns a price
+          into a profit — and the confidence to act on it in time.
         </p>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           <Panel className="bg-secondary">
@@ -172,7 +174,9 @@ function Landing() {
             </ul>
           </Panel>
           <Panel className="bg-primary text-primary-foreground">
-            <Pill className="bg-primary-foreground/15 text-primary-foreground">{tr("With AgriSense")}</Pill>
+            <Pill className="bg-primary-foreground/15 text-primary-foreground">
+              {tr("With AgriSense")}
+            </Pill>
             <h3 className="mt-4 font-serif text-2xl">{tr("A decision you can act on")}</h3>
             <ul className="mt-5 space-y-3 text-sm text-primary-foreground/80">
               {[
@@ -263,7 +267,9 @@ function Landing() {
       {/* Market intelligence */}
       <section id="intelligence" className="mx-auto max-w-6xl px-6 py-24">
         <p className="eyebrow">{tr("Market intelligence")}</p>
-        <h2 className="mt-3 max-w-2xl font-serif text-4xl">{tr("Everything priced from your farm gate")}</h2>
+        <h2 className="mt-3 max-w-2xl font-serif text-4xl">
+          {tr("Everything priced from your farm gate")}
+        </h2>
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
           {[
             {
@@ -314,8 +320,16 @@ function Landing() {
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
               ["01", "Register your lot", "Crop, grade, quantity, harvest date and farm location."],
-              ["02", "Read the decision", "Six signals scored and weighted into sell, hold or split."],
-              ["03", "Accept and track", "Confirm the buyer, schedule pickup, follow payment to settlement."],
+              [
+                "02",
+                "Read the decision",
+                "Six signals scored and weighted into sell, hold or split.",
+              ],
+              [
+                "03",
+                "Accept and track",
+                "Confirm the buyer, schedule pickup, follow payment to settlement.",
+              ],
             ].map(([n, t, b]) => (
               <Panel key={n}>
                 <span className="font-serif text-4xl text-primary/30">{n}</span>
@@ -331,9 +345,13 @@ function Landing() {
       <section id="trust" className="mx-auto grid max-w-6xl gap-10 px-6 py-24 lg:grid-cols-2">
         <div>
           <p className="eyebrow">{tr("Buyer trust")}</p>
-          <h2 className="mt-3 font-serif text-4xl">{tr("Reliability is a number, not a rumour")}</h2>
+          <h2 className="mt-3 font-serif text-4xl">
+            {tr("Reliability is a number, not a rumour")}
+          </h2>
           <p className="mt-4 text-muted-foreground">
-            {tr("Every buyer carries a score built from on-time payments, honoured offers, rejection rates and dispute history. Small lots get aggregated through your FPO so you reach the volume buyers usually reserve for large traders.")}
+            {tr(
+              "Every buyer carries a score built from on-time payments, honoured offers, rejection rates and dispute history. Small lots get aggregated through your FPO so you reach the volume buyers usually reserve for large traders.",
+            )}
           </p>
           <div className="mt-8 space-y-4">
             {[
@@ -373,7 +391,9 @@ function Landing() {
             {tr("Your next harvest deserves a better decision")}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-primary-foreground/75">
-            {tr("Start with a demo farm in Dindori, Nashik and see how the engine prices every buyer and mandi around you.")}
+            {tr(
+              "Start with a demo farm in Dindori, Nashik and see how the engine prices every buyer and mandi around you.",
+            )}
           </p>
           <Link
             to="/auth"

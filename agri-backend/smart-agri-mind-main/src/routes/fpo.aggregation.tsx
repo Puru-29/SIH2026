@@ -6,6 +6,7 @@ import { fpoApi, type Contribution, type FpoLot } from "@/services/fpo-api";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import { useCropOptions } from "@/hooks/use-my-lots";
 import { cropEmoji } from "@/lib/crop-catalog";
+import { CreatePoolModal, PoolCard } from "@/components/fpo/pool-ui";
 import { cn } from "@/lib/utils";
 import {
   Badge,
@@ -30,8 +31,98 @@ import {
 } from "@/components/fpo/fpo-ui";
 
 export const Route = createFileRoute("/fpo/aggregation")({
-  component: AggregationPage,
+  component: AggregationTabs,
 });
+
+/** Pools are the main way to aggregate; direct contributions remain for one-off lots. */
+function AggregationTabs() {
+  const { t } = useI18n();
+  const navigate = Route.useNavigate();
+  const [view, setView] = useState<"pools" | "direct">("pools");
+  const [creating, setCreating] = useState(false);
+  const pools = useFpoQuery(["pools"], fpoApi.pools);
+  const active = (pools.data ?? []).filter(
+    (p) => !["cancelled", "settled"].includes(p.effective_status),
+  );
+  const closed = (pools.data ?? []).filter((p) =>
+    ["cancelled", "settled"].includes(p.effective_status),
+  );
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs<"pools" | "direct">
+          value={view}
+          onChange={setView}
+          items={[
+            { id: "pools", label: "Pools", count: active.length },
+            { id: "direct", label: "Direct contributions" },
+          ]}
+        />
+        {view === "pools" && (
+          <Btn size="lg" icon={<Plus className="h-5 w-5" />} onClick={() => setCreating(true)}>
+            {t("Create pool")}
+          </Btn>
+        )}
+      </div>
+      {view === "direct" ? (
+        <AggregationPage />
+      ) : (
+        <>
+          <PageTitle
+            title="Crop pools"
+            subtitle="Set a target, collect pledges from members, weigh and grade the crop at the collection centre, then list it for sale as one bulk lot."
+          />
+          <ErrorNote error={pools.error} />
+          {pools.isLoading ? (
+            <Loading />
+          ) : active.length === 0 && closed.length === 0 ? (
+            <Card>
+              <Empty
+                icon={<Wheat className="h-6 w-6" />}
+                title="No pools yet"
+                body="Create a pool for a crop your members grow. They can pledge to it from their own app."
+                action={
+                  <Btn icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>
+                    {t("Create pool")}
+                  </Btn>
+                }
+              />
+            </Card>
+          ) : (
+            <>
+              <div className="grid gap-5 lg:grid-cols-2">
+                {active.map((p) => (
+                  <PoolCard key={p.id} pool={p} />
+                ))}
+              </div>
+              {closed.length > 0 && (
+                <details className="text-sm">
+                  <summary className="cursor-pointer font-medium text-primary">
+                    {t("Settled and cancelled pools")} ({closed.length})
+                  </summary>
+                  <div className="mt-3 grid gap-5 lg:grid-cols-2">
+                    {closed.map((p) => (
+                      <PoolCard key={p.id} pool={p} />
+                    ))}
+                  </div>
+                </details>
+              )}
+            </>
+          )}
+        </>
+      )}
+      {creating && (
+        <CreatePoolModal
+          onClose={() => setCreating(false)}
+          onCreated={(p) => {
+            setCreating(false);
+            void navigate({ to: "/fpo/pools/$poolId", params: { poolId: String(p.id) } });
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 type Tab = "pending" | "approved" | "all";
 
@@ -57,8 +148,8 @@ function AggregationPage() {
   return (
     <>
       <PageTitle
-        title="Crop Aggregation"
-        subtitle="Collect crop from member farmers, approve it, then combine it into one bulk lot that buyers can bid on."
+        title="Direct contributions"
+        subtitle="For crop that is not part of a pool: record it, approve it, then combine it into a bulk lot."
         actions={
           <Btn size="lg" icon={<Plus className="h-5 w-5" />} onClick={() => setAdding(true)}>
             {t("Add Crop")}

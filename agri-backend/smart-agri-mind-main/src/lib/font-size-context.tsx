@@ -10,12 +10,13 @@ import {
 
 export type FontSizeLevel = "sm" | "md" | "lg" | "xl";
 
-export const FONT_SIZES: { level: FontSizeLevel; label: string; scale: number; percent: string }[] = [
-  { level: "sm", label: "Small", scale: 0.9, percent: "90%" },
-  { level: "md", label: "Default (100%)", scale: 1.0, percent: "100%" },
-  { level: "lg", label: "Large (115%)", scale: 1.15, percent: "115%" },
-  { level: "xl", label: "Extra Large (130%)", scale: 1.3, percent: "130%" },
-];
+export const FONT_SIZES: { level: FontSizeLevel; label: string; scale: number; percent: string }[] =
+  [
+    { level: "sm", label: "Small", scale: 0.9, percent: "90%" },
+    { level: "md", label: "Default (100%)", scale: 1.0, percent: "100%" },
+    { level: "lg", label: "Large (115%)", scale: 1.15, percent: "115%" },
+    { level: "xl", label: "Extra Large (130%)", scale: 1.3, percent: "130%" },
+  ];
 
 const STORAGE_KEY = "agrisense-font-size-level";
 
@@ -94,7 +95,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
 
   const currentConfig = useMemo(
     () => FONT_SIZES.find((f) => f.level === fontSize) || FONT_SIZES[1]!,
-    [fontSize]
+    [fontSize],
   );
 
   const value = useMemo(
@@ -107,7 +108,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
       currentScale: currentConfig.scale,
       currentPercent: currentConfig.percent,
     }),
-    [fontSize, setFontSize, increaseFontSize, decreaseFontSize, resetFontSize, currentConfig]
+    [fontSize, setFontSize, increaseFontSize, decreaseFontSize, resetFontSize, currentConfig],
   );
 
   return <FontSizeContext.Provider value={value}>{children}</FontSizeContext.Provider>;

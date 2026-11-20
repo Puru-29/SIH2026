@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Eye, Pencil, Search, UserPlus, Users } from "lucide-react";
+import { Check, Eye, Pencil, Search, UserPlus, Users, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { fpoApi, type FpoMember, type MemberInput } from "@/services/fpo-api";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
@@ -106,6 +106,8 @@ function FarmersPage() {
           <option value="inactive">{t("Inactive")}</option>
         </select>
       </div>
+
+      <JoinRequests />
 
       <Card padded={false}>
         <ErrorNote error={members.error} />
@@ -275,6 +277,26 @@ function FarmersPage() {
               }
               placeholder="Wheat, Onion, Soybean"
             />
+            {!editing.id && (
+              <Input
+                id="m-pin"
+                label="App login PIN (optional)"
+                hint="If this farmer has no AgriSense login yet, set a 4-digit PIN so they can see their pledges and payouts."
+                inputMode="numeric"
+                maxLength={4}
+                pattern="[0-9]{4}"
+                value={editing.form.create_login_pin ?? ""}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    form: {
+                      ...editing.form,
+                      create_login_pin: e.target.value.replace(/\D/g, "").slice(0, 4),
+                    },
+                  })
+                }
+              />
+            )}
             {editing.id && (
               <Select
                 id="m-status"
@@ -288,7 +310,7 @@ function FarmersPage() {
                 }
               >
                 <option value="active">{t("Active")}</option>
-                <option value="inactive">{t("Inactive")}</option>
+                <option value="inactive">{t("Left the FPO")}</option>
               </Select>
             )}
             <FormActions
@@ -385,5 +407,60 @@ function FarmerDetail({ id, onClose }: { id: number; onClose: () => void }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Farmers who asked to join from their own app. */
+function JoinRequests() {
+  const { t } = useI18n();
+  const requests = useFpoQuery(["join-requests"], fpoApi.joinRequests);
+  const decide = useFpoMutation(
+    ({ id, action }: { id: number; action: "approve" | "reject" }) => fpoApi.decideJoin(id, action),
+    {
+      success: (r) =>
+        r.status === "approved" ? t("Farmer added as a member") : t("Request declined"),
+    },
+  );
+  const pending = (requests.data ?? []).filter((r) => r.status === "pending");
+  if (pending.length === 0) return null;
+  return (
+    <Card
+      title="Requests to join"
+      subtitle="Farmers who asked to join your FPO from the AgriSense app."
+    >
+      <ul className="divide-y divide-border">
+        {pending.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">
+                {r.name}{" "}
+                <span className="text-sm font-normal text-muted-foreground">
+                  · {r.phone}
+                  {r.location ? ` · ${r.location}` : ""}
+                </span>
+              </p>
+              {r.message && <p className="text-sm text-muted-foreground">“{r.message}”</p>}
+              <p className="text-xs text-muted-foreground">{shortDate(r.created_at)}</p>
+            </div>
+            <Btn
+              size="sm"
+              icon={<Check className="h-4 w-4" />}
+              busy={decide.isPending}
+              onClick={() => decide.mutate({ id: r.id, action: "approve" })}
+            >
+              {t("Approve")}
+            </Btn>
+            <Btn
+              size="sm"
+              variant="danger"
+              icon={<X className="h-4 w-4" />}
+              onClick={() => decide.mutate({ id: r.id, action: "reject" })}
+            >
+              {t("Decline")}
+            </Btn>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

@@ -1,5 +1,9 @@
-use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
+
+use crate::auth::{hash_pin, verify_pin};
+
+/// PIN for the seeded demo accounts (documented in the README). Override with DEMO_PIN.
+const DEFAULT_DEMO_PIN: &str = "1234";
 
 /// Creates or updates the platform admin from ADMIN_PHONE / ADMIN_PIN.
 /// No admin exists unless both variables are set — there is no default password.
@@ -17,15 +21,69 @@ pub async fn ensure_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         );
         return Ok(());
     }
-    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
-    sqlx::query(
-        "INSERT INTO users (name, role, phone_number, pin_hash) VALUES ('AgriSense Admin', 'admin', ?, ?)
-         ON CONFLICT(phone_number) DO UPDATE SET pin_hash = excluded.pin_hash WHERE users.role = 'admin'",
-    )
-    .bind(&phone)
-    .bind(&hash)
-    .execute(pool)
-    .await?;
+    let existing: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT role, pin_hash FROM users WHERE phone_number = ?")
+            .bind(&phone)
+            .fetch_optional(pool)
+            .await?;
+    match existing {
+        Some((role, _)) if role != "admin" => {
+            tracing::warn!("ADMIN_PHONE belongs to a {role} account; admin account not created");
+        }
+        // Re-hash only when the PIN in .env changed (argon2 hashes are salted).
+        Some((_, Some(hash))) if verify_pin(&pin, &hash).0 && hash.starts_with("$argon2") => {}
+        Some(_) => {
+            sqlx::query("UPDATE users SET pin_hash = ?, status = 'active' WHERE phone_number = ? AND role = 'admin'")
+                .bind(hash_pin(&pin))
+                .bind(&phone)
+                .execute(pool)
+                .await?;
+        }
+        None => {
+            sqlx::query(
+                "INSERT INTO users (name, role, phone_number, pin_hash, status)
+                 VALUES ('AgriSense Admin', 'admin', ?, ?, 'active')",
+            )
+            .bind(&phone)
+            .bind(hash_pin(&pin))
+            .execute(pool)
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+/// Gives the seeded demo farmer, buyer and FPO a PIN so the "demo" buttons are
+/// real sign-ins, and makes sure the demo FPO has a verified organisation.
+/// Only touches seeded accounts that have no PIN yet, so it is safe on every start.
+pub async fn ensure_demo_accounts(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let pin = std::env::var("DEMO_PIN")
+        .ok()
+        .filter(|p| p.len() == 4 && p.chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or_else(|| DEFAULT_DEMO_PIN.to_string());
+    for id in [1_i64, 2, 3] {
+        sqlx::query("UPDATE users SET pin_hash = ? WHERE id = ? AND pin_hash IS NULL")
+            .bind(hash_pin(&pin))
+            .bind(id)
+            .execute(pool)
+            .await?;
+    }
+    let is_fpo: Option<String> = sqlx::query_scalar("SELECT role FROM users WHERE id = 3")
+        .fetch_optional(pool)
+        .await?;
+    if is_fpo.as_deref() == Some("fpo") {
+        sqlx::query(
+            "INSERT OR IGNORE INTO fpo_organizations
+                (manager_user_id, name, contact_phone, registration_no, district, state, primary_crops, verified, verified_at)
+             SELECT id, name, phone_number, 'FPO/PB/LDH/2019/0142', 'Ludhiana', 'Punjab', 'Wheat, Paddy, Potato', 1, CURRENT_TIMESTAMP
+             FROM users WHERE id = 3",
+        )
+        .execute(pool)
+        .await?;
+        sqlx::query("UPDATE users SET status = 'active' WHERE id = 3 AND status = 'pending'")
+            .execute(pool)
+            .await?;
+    }
     Ok(())
 }
 

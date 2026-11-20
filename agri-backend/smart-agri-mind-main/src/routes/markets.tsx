@@ -14,9 +14,15 @@ export const Route = createFileRoute("/markets")({
   head: () => ({
     meta: [
       { title: "Markets — AgriSense" },
-      { name: "description", content: "Mandi prices, arrivals and freight-adjusted net realization near your farm." },
+      {
+        name: "description",
+        content: "Mandi prices, arrivals and freight-adjusted net realization near your farm.",
+      },
       { property: "og:title", content: "Markets — AgriSense" },
-      { property: "og:description", content: "Compare mandis and buyers side by side from your farm gate." },
+      {
+        property: "og:description",
+        content: "Compare mandis and buyers side by side from your farm gate.",
+      },
     ],
   }),
   component: Markets,
@@ -55,8 +61,7 @@ function Markets() {
         offer.required_by,
       ];
       return (
-        matchesCrop &&
-        (!query || searchable.some((value) => value.toLowerCase().includes(query)))
+        matchesCrop && (!query || searchable.some((value) => value.toLowerCase().includes(query)))
       );
     });
   }, [buyerPrices, buyerSearch, buyerCropFilter]);
@@ -73,19 +78,20 @@ function Markets() {
   const filteredLivePrices = useMemo(() => {
     const query = priceSearch.trim().toLowerCase();
 
-    return livePrices.filter((price) =>
-      (cropFilter === "all" || price.crop_name === cropFilter) &&
-      [
-        price.crop_name,
-        price.market,
-        price.state,
-        price.district,
-        price.variety,
-        price.grade,
-        price.date,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(query)),
+    return livePrices.filter(
+      (price) =>
+        (cropFilter === "all" || price.crop_name === cropFilter) &&
+        [
+          price.crop_name,
+          price.market,
+          price.state,
+          price.district,
+          price.variety,
+          price.grade,
+          price.date,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(query)),
     );
   }, [livePrices, priceSearch, cropFilter]);
   const totalPricePages = Math.max(1, Math.ceil(filteredLivePrices.length / pricesPerPage));
@@ -128,7 +134,11 @@ function Markets() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Markets tracked" value={uniqueMarkets.size} hint={location.state} />
-        <Metric label="Average price" value={`${inr(avgPrice)}/kg`} hint={t("Across tracked mandis")} />
+        <Metric
+          label="Average price"
+          value={`${inr(avgPrice)}/kg`}
+          hint={t("Across tracked mandis")}
+        />
         <Metric label="Highest price" value={`${inr(maxPrice)}/kg`} hint={best?.crop_name ?? "—"} />
       </div>
 
@@ -196,20 +206,17 @@ function Markets() {
         ) : (
           <>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleLivePrices.map((price) => (
-              <div
-                key={price.id}
-                className="rounded-xl border border-border bg-background p-4"
-              >
-                <p className="text-xs text-muted-foreground">
-                  {price.crop_name} · {price.market}
-                </p>
-                <p className="mt-1 font-serif text-2xl">{inr(price.price_per_kg)}/kg</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {inr(price.modal_price)}/quintal · {price.date}
-                </p>
-              </div>
-            ))}
+              {visibleLivePrices.map((price) => (
+                <div key={price.id} className="rounded-xl border border-border bg-background p-4">
+                  <p className="text-xs text-muted-foreground">
+                    {price.crop_name} · {price.market}
+                  </p>
+                  <p className="mt-1 font-serif text-2xl">{inr(price.price_per_kg)}/kg</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {inr(price.modal_price)}/quintal · {price.date}
+                  </p>
+                </div>
+              ))}
             </div>
             {filteredLivePrices.length === 0 ? (
               <p className="mt-6 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -297,13 +304,19 @@ function Markets() {
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  {["Buyer", "Crop", "Offer/kg", "Minimum quantity", "Quality", "Delivery", "Required by"].map(
-                    (heading) => (
-                      <th key={heading} className="px-6 py-3 font-medium">
-                        {t(heading)}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    "Buyer",
+                    "Crop",
+                    "Offer/kg",
+                    "Minimum quantity",
+                    "Quality",
+                    "Delivery",
+                    "Required by",
+                  ].map((heading) => (
+                    <th key={heading} className="px-6 py-3 font-medium">
+                      {t(heading)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -352,7 +365,9 @@ function Markets() {
                 {t("No buyer prices available.")}
               </p>
             ) : null}
-            {!buyerPricesQuery.isLoading && filteredBuyerPrices.length === 0 && buyerPrices.length > 0 ? (
+            {!buyerPricesQuery.isLoading &&
+            filteredBuyerPrices.length === 0 &&
+            buyerPrices.length > 0 ? (
               <p className="p-6 text-center text-sm text-muted-foreground">
                 {t("No buyer offers match your filters.")}
               </p>

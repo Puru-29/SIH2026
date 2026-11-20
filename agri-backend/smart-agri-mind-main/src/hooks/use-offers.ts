@@ -15,6 +15,7 @@ import {
   getOffers,
 } from "@/services/api-client";
 import { getSession } from "@/services/session";
+import { refreshMarket } from "@/hooks/use-market";
 
 export type { BackendOffer, BackendTransaction, CreateOfferRequest };
 
@@ -30,28 +31,20 @@ export function useOffers() {
   });
 }
 
-/** Submit a new offer on a lot. Requires buyer role (X-User-Id). */
+/** A buyer bids on a lot, or a farmer offers a lot to a buyer. */
 export function useCreateOffer() {
   const qc = useQueryClient();
   return useMutation<BackendOffer, Error, CreateOfferRequest>({
     mutationFn: createOffer,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["offers"] });
-      void qc.invalidateQueries({ queryKey: ["lots"] });
-    },
+    onSuccess: () => refreshMarket(qc),
   });
 }
 
-/** Accept an outstanding offer by id. Requires farmer/fpo role. */
+/** Accept the other side's pending offer; starts an order. */
 export function useAcceptOffer() {
   const qc = useQueryClient();
   return useMutation<BackendTransaction, Error, number>({
     mutationFn: acceptOffer,
-    onSuccess: () => {
-      // Invalidate transactions cache so the orders page refreshes
-      void qc.invalidateQueries({ queryKey: ["transactions"] });
-      void qc.invalidateQueries({ queryKey: ["offers"] });
-      void qc.invalidateQueries({ queryKey: ["lots"] });
-    },
+    onSuccess: () => refreshMarket(qc),
   });
 }

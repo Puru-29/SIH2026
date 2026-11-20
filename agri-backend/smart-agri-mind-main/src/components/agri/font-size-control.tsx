@@ -4,14 +4,21 @@ import { cn } from "@/lib/utils";
 import { Type } from "lucide-react";
 
 export function FontSizeControl({ className }: { className?: string }) {
-  const { fontSize, setFontSize, increaseFontSize, decreaseFontSize, resetFontSize, currentPercent } = useFontSize();
+  const {
+    fontSize,
+    setFontSize,
+    increaseFontSize,
+    decreaseFontSize,
+    resetFontSize,
+    currentPercent,
+  } = useFontSize();
   const { t } = useI18n();
 
   return (
     <div
       className={cn(
         "flex items-center gap-1 rounded-full border border-border bg-card/80 p-1 text-xs backdrop-blur-sm shadow-sm",
-        className
+        className,
       )}
       role="group"
       aria-label={t("Font size adjustment")}
@@ -28,7 +35,7 @@ export function FontSizeControl({ className }: { className?: string }) {
           "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
           fontSize === "sm"
             ? "cursor-not-allowed opacity-40 text-muted-foreground"
-            : "hover:bg-accent text-foreground hover:text-accent-foreground active:scale-95"
+            : "hover:bg-accent text-foreground hover:text-accent-foreground active:scale-95",
         )}
         title={t("Decrease font size (A-)")}
         aria-label={t("Decrease font size (A-)")}
@@ -42,7 +49,7 @@ export function FontSizeControl({ className }: { className?: string }) {
           "flex h-7 px-2 items-center justify-center rounded-full text-xs font-semibold transition-colors",
           fontSize === "md"
             ? "bg-primary text-primary-foreground font-bold shadow-xs"
-            : "hover:bg-accent text-foreground hover:text-accent-foreground"
+            : "hover:bg-accent text-foreground hover:text-accent-foreground",
         )}
         title={t("Reset font size to 100%")}
         aria-label={t("Reset font size to 100%")}
@@ -57,7 +64,7 @@ export function FontSizeControl({ className }: { className?: string }) {
           "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
           fontSize === "xl"
             ? "cursor-not-allowed opacity-40 text-muted-foreground"
-            : "hover:bg-accent text-foreground hover:text-accent-foreground active:scale-95"
+            : "hover:bg-accent text-foreground hover:text-accent-foreground active:scale-95",
         )}
         title={t("Increase font size (A+)")}
         aria-label={t("Increase font size (A+)")}

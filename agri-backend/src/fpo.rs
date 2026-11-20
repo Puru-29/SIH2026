@@ -2,7 +2,7 @@
 //!
 //! Roles:
 //!   * `fpo`    — FPO manager: runs members, contributions, bulk lots, quality,
-//!                offers, sales, payments, payouts, logistics and grievances.
+//!     offers, sales, payments, payouts, logistics and grievances.
 //!   * `buyer`  — sees FPO bulk lots, makes and negotiates offers.
 //!   * `farmer` — sees own FPO membership, contributions, payouts; raises grievances.
 //!   * `admin`  — verifies FPO organisations and buyers.
@@ -30,12 +30,16 @@ use crate::{
     services::advisor::evaluate_smart_sale,
 };
 
+#[path = "fpo_pools.rs"]
+pub(crate) mod pools;
+
 type ApiResult<T> = Result<Json<T>, AppError>;
 const EPS: f64 = 0.0001;
 const MAX_UPLOAD_BYTES: usize = 1024 * 1024;
 
 pub fn routes() -> Router<SqlitePool> {
     Router::new()
+        .merge(pools::routes())
         .route("/api/fpo/org", get(get_org).put(update_org))
         .route("/api/fpo/dashboard", get(dashboard))
         .route("/api/fpo/notifications", get(notifications))
@@ -252,21 +256,20 @@ pub struct Org {
     verified: i64,
     verified_at: Option<String>,
     created_at: Option<String>,
+    verified_by: Option<i64>,
+    primary_crops: String,
+    rejection_reason: Option<String>,
 }
 
 const ORG_COLS: &str =
     "id, manager_user_id, name, registration_no, district, state, contact_phone, \
-     commission_pct, verified, verified_at, created_at";
+     commission_pct, verified, verified_at, created_at, verified_by, primary_crops, rejection_reason";
 
 /// The signed-in FPO manager's organisation (created on first use).
-async fn manager_org(pool: &SqlitePool, user: &AuthUser) -> Result<Org, AppError> {
-    let (role, name, phone_number): (String, String, String) =
-        sqlx::query_as("SELECT role, name, phone_number FROM users WHERE id = ?")
-            .bind(user.user_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| AppError::Unauthorized("Unknown user. Please sign in again.".into()))?;
-    if role != "fpo" {
+/// The signed-in FPO manager's organisation, allowed even while the FPO is
+/// waiting for verification (used for its own profile only).
+async fn manager_org_any(pool: &SqlitePool, user: &AuthUser) -> Result<Org, AppError> {
+    if user.role != "fpo" {
         return Err(forbidden("Only FPO managers can use the FPO portal"));
     }
     let sql = format!("SELECT {ORG_COLS} FROM fpo_organizations WHERE manager_user_id = ?");
@@ -277,18 +280,35 @@ async fn manager_org(pool: &SqlitePool, user: &AuthUser) -> Result<Org, AppError
     {
         return Ok(org);
     }
-    sqlx::query(
-        "INSERT OR IGNORE INTO fpo_organizations (manager_user_id, name, contact_phone) VALUES (?, ?, ?)",
+    // FPO accounts created before organisations existed get one on first use.
+    let phone_number: String = sqlx::query_scalar("SELECT phone_number FROM users WHERE id = ?")
+        .bind(user.user_id)
+        .fetch_one(pool)
+        .await?;
+    create_org_for_manager(
+        pool,
+        user.user_id,
+        &user.name,
+        &phone_number,
+        &crate::db::FpoSignup::default(),
     )
-    .bind(user.user_id)
-    .bind(&name)
-    .bind(&phone_number)
-    .execute(pool)
     .await?;
     Ok(sqlx::query_as::<_, Org>(&sql)
         .bind(user.user_id)
         .fetch_one(pool)
         .await?)
+}
+
+/// The signed-in FPO manager's organisation. Every FPO operation goes through
+/// this, so a pending (unverified) FPO cannot use the portal yet.
+async fn manager_org(pool: &SqlitePool, user: &AuthUser) -> Result<Org, AppError> {
+    let org = manager_org_any(pool, user).await?;
+    if user.status == "pending" {
+        return Err(forbidden(
+            "Your FPO is waiting for verification by the AgriSense admin. You can use the portal once it is approved.",
+        ));
+    }
+    Ok(org)
 }
 
 /// Called from registration so a new FPO account starts with an organisation.
@@ -297,23 +317,30 @@ pub async fn create_org_for_manager<'c, E>(
     user_id: i64,
     name: &str,
     phone_number: &str,
+    signup: &crate::db::FpoSignup<'_>,
 ) -> Result<(), sqlx::Error>
 where
     E: sqlx::Executor<'c, Database = Sqlite>,
 {
     sqlx::query(
-        "INSERT OR IGNORE INTO fpo_organizations (manager_user_id, name, contact_phone) VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO fpo_organizations
+            (manager_user_id, name, contact_phone, registration_no, district, state, primary_crops)
+         VALUES (?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), 'Maharashtra'), ?)",
     )
     .bind(user_id)
     .bind(name)
     .bind(phone_number)
+    .bind(signup.registration_no.map(str::trim))
+    .bind(signup.district.map(str::trim).unwrap_or(""))
+    .bind(signup.state.map(str::trim).unwrap_or(""))
+    .bind(signup.primary_crops.map(str::trim).unwrap_or(""))
     .execute(ex)
     .await?;
     Ok(())
 }
 
 async fn get_org(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Org> {
-    Ok(Json(manager_org(&pool, &user).await?))
+    Ok(Json(manager_org_any(&pool, &user).await?))
 }
 
 #[derive(Deserialize)]
@@ -324,6 +351,7 @@ struct OrgBody {
     state: String,
     contact_phone: Option<String>,
     commission_pct: f64,
+    primary_crops: Option<String>,
 }
 
 async fn update_org(
@@ -331,7 +359,7 @@ async fn update_org(
     user: AuthUser,
     Json(b): Json<OrgBody>,
 ) -> ApiResult<Org> {
-    let org = manager_org(&pool, &user).await?;
+    let org = manager_org_any(&pool, &user).await?;
     let name = text(&b.name, "FPO name", 2, 120)?;
     let reg = b
         .registration_no
@@ -346,9 +374,17 @@ async fn update_org(
         _ => None,
     };
     let commission = number(b.commission_pct, "FPO service charge %", 0.0, 20.0)?;
+    let crops = text(
+        b.primary_crops.as_deref().unwrap_or(&org.primary_crops),
+        "Primary crops",
+        0,
+        300,
+    )?;
     sqlx::query(
         "UPDATE fpo_organizations SET name = ?, registration_no = ?, district = ?, state = ?,
-         contact_phone = ?, commission_pct = ? WHERE id = ?",
+         contact_phone = ?, commission_pct = ?, primary_crops = ?,
+         rejection_reason = CASE WHEN verified = 0 THEN NULL ELSE rejection_reason END
+         WHERE id = ?",
     )
     .bind(&name)
     .bind(&reg)
@@ -356,6 +392,7 @@ async fn update_org(
     .bind(&state)
     .bind(&contact)
     .bind(commission)
+    .bind(&crops)
     .bind(org.id)
     .execute(&pool)
     .await?;
@@ -369,7 +406,7 @@ async fn update_org(
         format!("{name}, service charge {commission}%"),
     )
     .await?;
-    Ok(Json(manager_org(&pool, &user).await?))
+    Ok(Json(manager_org_any(&pool, &user).await?))
 }
 
 /* -------------------------------- documents -------------------------------- */
@@ -451,8 +488,9 @@ where
     .bind(bytes.len() as i64)
     .bind(bytes)
     .bind(user_id)
-    .fetch_one(ex)
-    .await?;
+    .fetch_all(ex)
+    .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))?;
     Ok(id)
 }
 
@@ -593,6 +631,8 @@ struct MemberBody {
     land_acres: f64,
     crops: String,
     status: Option<String>,
+    /// When the farmer has no AgriSense login yet: create one with this PIN.
+    create_login_pin: Option<String>,
 }
 
 async fn create_member(
@@ -607,11 +647,47 @@ async fn create_member(
     let land = number(b.land_acres, "Land size (acres)", 0.0, 10_000.0)?;
     let crops = text(&b.crops, "Crops", 0, 300)?;
     // Link to an existing farmer account with the same mobile number.
-    let linked: Option<i64> =
+    let mut linked: Option<i64> =
         sqlx::query_scalar("SELECT id FROM users WHERE phone_number = ? AND role = 'farmer'")
             .bind(&mobile)
             .fetch_optional(&pool)
             .await?;
+    let mut tx = pool.begin().await?;
+    if let Some(pin) = b
+        .create_login_pin
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
+        if linked.is_some() {
+            return Err(bad(
+                "This farmer already has an AgriSense login; no PIN is needed",
+            ));
+        }
+        if pin.len() != 4 || !pin.chars().all(|c| c.is_ascii_digit()) {
+            return Err(bad("The login PIN must be 4 digits"));
+        }
+        let uid = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO users (name, role, phone_number, pin_hash, status) VALUES (?, 'farmer', ?, ?, 'active') RETURNING id",
+        )
+        .bind(&name)
+        .bind(&mobile)
+        .bind(crate::auth::hash_pin(pin))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(d) if d.message().contains("UNIQUE") => {
+                bad("This mobile number already belongs to another AgriSense account")
+            }
+            other => AppError::from(other),
+        })?;
+        sqlx::query("INSERT INTO farmers (id, location, urgency_level) VALUES (?, ?, 'medium')")
+            .bind(uid)
+            .bind(&org.state)
+            .execute(&mut *tx)
+            .await?;
+        linked = Some(uid);
+    }
     let id = sqlx::query_scalar::<_, i64>(
         "INSERT INTO fpo_members (fpo_id, user_id, name, phone, village, land_acres, crops)
          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
@@ -623,7 +699,7 @@ async fn create_member(
     .bind(&village)
     .bind(land)
     .bind(&crops)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| match e {
         sqlx::Error::Database(d) if d.message().contains("UNIQUE") => {
@@ -631,6 +707,7 @@ async fn create_member(
         }
         other => AppError::from(other),
     })?;
+    tx.commit().await?;
     audit(
         &pool,
         org.id,
@@ -737,10 +814,20 @@ struct Contribution {
     lot_id: Option<i64>,
     lot_code: Option<String>,
     created_at: Option<String>,
+    pool_id: Option<i64>,
+    pledged_quintals: Option<f64>,
+    received_quintals: Option<f64>,
+    assessed_grade: Option<String>,
+    source_lot_id: Option<i64>,
+    pledged_by: String,
+    rejection_note: String,
+    received_at: Option<String>,
 }
 
 const CONTRIB_SELECT: &str = "SELECT c.id, c.member_id, m.name AS member_name, c.crop_id, cr.name AS crop_name,
-    c.variety, c.quantity_quintals, c.harvest_date, c.quality_note, c.status, c.lot_id, l.lot_code, c.created_at
+    c.variety, c.quantity_quintals, c.harvest_date, c.quality_note, c.status, c.lot_id, l.lot_code, c.created_at,
+    c.pool_id, c.pledged_quintals, c.received_quintals, c.assessed_grade, c.source_lot_id, c.pledged_by,
+    c.rejection_note, c.received_at
     FROM fpo_contributions c
     JOIN fpo_members m ON m.id = c.member_id
     JOIN crops cr ON cr.id = c.crop_id
@@ -845,8 +932,9 @@ async fn create_contribution(
     .bind(qty)
     .bind(&harvest)
     .bind(&note)
-    .fetch_one(&pool)
-    .await?;
+    .fetch_all(&pool)
+    .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))?;
     audit(
         &pool,
         org.id,
@@ -872,7 +960,8 @@ async fn review_contribution(
         _ => return Err(bad("Action must be approve or reject")),
     };
     let done = sqlx::query(
-        "UPDATE fpo_contributions SET status = ? WHERE id = ? AND fpo_id = ? AND status = 'pending'",
+        "UPDATE fpo_contributions SET status = ? WHERE id = ? AND fpo_id = ? AND status = 'pending'
+         AND pool_id IS NULL",
     )
     .bind(next)
     .bind(id)
@@ -881,7 +970,7 @@ async fn review_contribution(
     .await?;
     if done.rows_affected() == 0 {
         return Err(bad(
-            "Only pending contributions can be approved or rejected",
+            "Only pending contributions can be approved or rejected here. Pool pledges are weighed and graded in the pool's intake.",
         ));
     }
     audit(
@@ -1433,9 +1522,12 @@ fn grade_rank(s: &str) -> Option<i32> {
         Some(3)
     } else if u.contains("GRADE B") || u.trim() == "B" || u.contains("STANDARD") {
         Some(2)
-    } else if u.contains("GRADE C") || u.trim() == "C" || u.contains("PROCESS") {
-        Some(1)
-    } else if u.contains("FAQ") || u.contains("ANY") {
+    } else if u.contains("GRADE C")
+        || u.trim() == "C"
+        || u.contains("PROCESS")
+        || u.contains("FAQ")
+        || u.contains("ANY")
+    {
         Some(1)
     } else {
         None
@@ -1507,7 +1599,7 @@ fn median(mut v: Vec<f64>) -> Option<f64> {
     }
     v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = v.len() / 2;
-    Some(if v.len() % 2 == 0 {
+    Some(if v.len().is_multiple_of(2) {
         (v[m - 1] + v[m]) / 2.0
     } else {
         v[m]
@@ -2454,35 +2546,41 @@ async fn update_expenses(
 }
 
 /// Splits a sale across the lot's contributors in proportion to what each one put in.
+/// Splits a sale between the lot's contributors: gross by quantity × grade factor,
+/// freight/storage/handling by quantity, FPO commission on each farmer's gross.
 async fn compute_distribution(pool: &SqlitePool, sale: &Sale) -> Result<Vec<Value>, AppError> {
-    let rows: Vec<(i64, i64, String, f64)> = sqlx::query_as(
-        "SELECT c.id, c.member_id, m.name, c.quantity_quintals FROM fpo_contributions c
+    let rows: Vec<(i64, i64, String, f64, Option<String>)> = sqlx::query_as(
+        "SELECT c.id, c.member_id, m.name, c.quantity_quintals, c.assessed_grade FROM fpo_contributions c
          JOIN fpo_members m ON m.id = c.member_id WHERE c.lot_id = ? ORDER BY c.id",
     )
     .bind(sale.lot_id)
     .fetch_all(pool)
     .await?;
-    let lot_total: f64 = rows.iter().map(|r| r.3).sum();
-    if lot_total <= 0.0 {
+    let input: Vec<pools::ShareIn> = rows
+        .into_iter()
+        .map(|(cid, mid, name, q, grade)| pools::ShareIn {
+            contribution_id: cid,
+            member_id: mid,
+            member_name: name,
+            quantity: q,
+            grade,
+        })
+        .collect();
+    let out = pools::split_sale(
+        &input,
+        &pools::SaleTerms {
+            quantity: sale.quantity_quintals,
+            amount: sale.amount,
+            transport: sale.transport_cost,
+            storage: sale.storage_cost,
+            handling: sale.handling_cost,
+            commission_pct: sale.commission_pct,
+        },
+    );
+    if out.is_empty() {
         return Err(bad("This lot has no contributions to distribute"));
     }
-    let commission = sale.amount * sale.commission_pct / 100.0;
-    let expenses = sale.transport_cost + sale.storage_cost + sale.handling_cost + commission;
-    Ok(rows
-        .iter()
-        .map(|(cid, mid, name, q)| {
-            let share = q / lot_total;
-            let quantity = sale.quantity_quintals * share;
-            let gross = r2(quantity * sale.price_per_quintal);
-            let deductions = r2(expenses * share);
-            json!({
-                "contribution_id": cid, "member_id": mid, "member_name": name,
-                "contributed_quintals": q, "share_pct": r2(share * 100.0),
-                "quantity_quintals": r2(quantity), "gross": gross, "deductions": deductions,
-                "net": r2(gross - deductions),
-            })
-        })
-        .collect())
+    Ok(out.into_iter().map(|o| json!(o)).collect())
 }
 
 async fn preview_distribution(
@@ -2652,8 +2750,9 @@ async fn create_warehouse(
     .bind(text(&b.location, "Location", 2, 150)?)
     .bind(positive(b.capacity_quintals, "Capacity (quintals)")?)
     .bind(number(b.rate_per_quintal_month, "Storage charge", 0.0, 100_000.0)?)
-    .fetch_one(&pool)
-    .await?;
+    .fetch_all(&pool)
+    .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))?;
     audit(
         &pool,
         org.id,
@@ -2718,8 +2817,9 @@ async fn create_transporter(
     .bind(text(&b.vehicle_number, "Vehicle number", 4, 20)?.to_uppercase())
     .bind(positive(b.capacity_quintals, "Truck capacity (quintals)")?)
     .bind(number(b.rate_per_km, "Rate per km", 0.0, 10_000.0)?)
-    .fetch_one(&pool)
-    .await?;
+    .fetch_all(&pool)
+    .await
+    .and_then(|mut rows| rows.pop().ok_or(sqlx::Error::RowNotFound))?;
     audit(
         &pool,
         org.id,
@@ -3254,7 +3354,7 @@ async fn my_fpo(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Val
     .bind(user.user_id)
     .execute(&pool)
     .await?;
-    let memberships: Vec<(
+    type Row3350 = (
         i64,
         i64,
         String,
@@ -3263,7 +3363,8 @@ async fn my_fpo(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Val
         String,
         String,
         Option<String>,
-    )> = sqlx::query_as(
+    );
+    let memberships: Vec<Row3350> = sqlx::query_as(
         "SELECT m.id, o.id, o.name, o.verified, o.district, o.state, m.status, m.joined_at
          FROM fpo_members m JOIN fpo_organizations o ON o.id = m.fpo_id WHERE m.user_id = ?",
     )
@@ -3341,7 +3442,26 @@ async fn build_notifications(pool: &SqlitePool, fpo_id: i64) -> Result<Vec<Value
     .fetch_one(pool)
     .await?;
     if pending > 0 {
-        out.push(json!({ "kind": "contribution", "tone": "warn", "message": format!("{pending} crop contribution(s) waiting for approval"), "link": "/fpo/aggregation" }));
+        out.push(json!({ "kind": "contribution", "tone": "warn", "message": format!("{pending} crop pledge(s) or contribution(s) waiting for intake or approval"), "link": "/fpo/aggregation" }));
+    }
+    let joins: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM fpo_join_requests WHERE fpo_id = ? AND status = 'pending'",
+    )
+    .bind(fpo_id)
+    .fetch_one(pool)
+    .await?;
+    if joins > 0 {
+        out.push(json!({ "kind": "join", "tone": "info", "message": format!("{joins} farmer(s) asked to join your FPO"), "link": "/fpo/farmers" }));
+    }
+    let overdue: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT p.id, c.name FROM fpo_pools p JOIN crops c ON c.id = p.crop_id
+         WHERE p.fpo_id = ? AND p.status = 'collecting' AND p.collection_deadline < date('now')",
+    )
+    .bind(fpo_id)
+    .fetch_all(pool)
+    .await?;
+    for (_, crop) in overdue {
+        out.push(json!({ "kind": "pool", "tone": "warn", "message": format!("{crop} pool is past its collection deadline. Lock it or extend collection."), "link": "/fpo/aggregation" }));
     }
     let offers: Vec<(i64, String, Option<String>, f64, f64)> = sqlx::query_as(
         "SELECT f.id, u.name, l.lot_code, f.quantity_quintals, f.price_per_quintal FROM fpo_offers f
@@ -3468,12 +3588,23 @@ async fn dashboard(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<
         "recent_sales": sales.into_iter().take(5).collect::<Vec<_>>(),
         "upcoming_shipments": shipments.into_iter().take(5).collect::<Vec<_>>(),
         "notifications": build_notifications(&pool, org.id).await?,
+        "pools": pools::pools_where(&pool, "p.fpo_id = ? AND p.status IN ('collecting', 'locked', 'listed')", &[org.id]).await?,
+        "demand_highlights": pools::demand_highlights(&pool, org.id).await?,
     })))
 }
 
 async fn audit_log(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Vec<Value>> {
     let org = manager_org(&pool, &user).await?;
-    let rows: Vec<(i64, String, String, String, Option<i64>, String, Option<String>)> = sqlx::query_as(
+    type Row3590 = (
+        i64,
+        String,
+        String,
+        String,
+        Option<i64>,
+        String,
+        Option<String>,
+    );
+    let rows: Vec<Row3590> = sqlx::query_as(
         "SELECT a.id, u.name, a.action, a.entity, a.entity_id, a.detail, a.created_at
          FROM fpo_audit_log a JOIN users u ON u.id = a.actor_id WHERE a.fpo_id = ? ORDER BY a.id DESC LIMIT 200",
     )
@@ -3530,7 +3661,8 @@ async fn report(
             )
         }
         "farmer_contributions" => {
-            let r: Vec<(String, String, String, i64, f64, f64, f64, f64)> = sqlx::query_as(
+            type Row3647 = (String, String, String, i64, f64, f64, f64, f64);
+            let r: Vec<Row3647> = sqlx::query_as(
                 "SELECT m.name, m.village, COALESCE(GROUP_CONCAT(DISTINCT cr.name), ''), COUNT(c.id),
                     CAST(COALESCE(SUM(CASE WHEN c.status IN ('approved','pooled') THEN c.quantity_quintals END), 0) AS REAL),
                     CAST(COALESCE(SUM(CASE WHEN c.status = 'pending' THEN c.quantity_quintals END), 0) AS REAL),
@@ -3633,7 +3765,8 @@ async fn report(
             )
         }
         "payments" => {
-            let r: Vec<(String, String, Option<String>, String, String, String, f64)> = sqlx::query_as(
+            type Row3750 = (String, String, Option<String>, String, String, String, f64);
+            let r: Vec<Row3750> = sqlx::query_as(
                 "SELECT p.paid_on, u.name, l.lot_code, p.kind, p.method, p.reference, p.amount
                  FROM fpo_payments p JOIN fpo_sales s ON s.id = p.sale_id JOIN users u ON u.id = s.buyer_id JOIN fpo_lots l ON l.id = s.lot_id
                  WHERE s.fpo_id = ? AND p.paid_on BETWEEN ? AND ? ORDER BY p.paid_on DESC",
@@ -3710,7 +3843,20 @@ fn in_range(created: &Option<String>, from: &str, to: &str) -> bool {
 
 async fn admin_fpos(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Vec<Value>> {
     require(&pool, &user, &["admin"]).await?;
-    let rows: Vec<(i64, String, Option<String>, String, String, i64, String, String, i64, i64, f64)> = sqlx::query_as(
+    type Row3827 = (
+        i64,
+        String,
+        Option<String>,
+        String,
+        String,
+        i64,
+        String,
+        String,
+        i64,
+        i64,
+        f64,
+    );
+    let rows: Vec<Row3827> = sqlx::query_as(
         "SELECT o.id, o.name, o.registration_no, o.district, o.state, o.verified, u.name, u.phone_number,
             (SELECT COUNT(*) FROM fpo_members m WHERE m.fpo_id = o.id),
             (SELECT COUNT(*) FROM fpo_lots l WHERE l.fpo_id = o.id),
@@ -3737,17 +3883,46 @@ async fn admin_verify_fpo(
     Json(b): Json<VerifyBody>,
 ) -> ApiResult<Value> {
     require(&pool, &user, &["admin"]).await?;
+    let mut tx = pool.begin().await?;
     let done = sqlx::query(
-        "UPDATE fpo_organizations SET verified = ?, verified_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = ?",
+        "UPDATE fpo_organizations SET verified = ?,
+            verified_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+            verified_by = CASE WHEN ? = 1 THEN ? ELSE NULL END
+         WHERE id = ?",
     )
     .bind(b.verified as i64)
     .bind(b.verified as i64)
+    .bind(b.verified as i64)
+    .bind(user.user_id)
     .bind(id)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
     if done.rows_affected() == 0 {
         return Err(not_found("FPO not found"));
     }
+    // Approval activates the FPO manager's account; removal sends it back to pending.
+    sqlx::query(
+        "UPDATE users SET status = ? WHERE id = (SELECT manager_user_id FROM fpo_organizations WHERE id = ?)
+         AND status <> 'suspended'",
+    )
+    .bind(if b.verified { "active" } else { "pending" })
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    crate::admin::log(
+        &mut *tx,
+        user.user_id,
+        if b.verified {
+            "fpo.approve"
+        } else {
+            "fpo.unverify"
+        },
+        "fpo",
+        Some(id),
+        serde_json::json!({}),
+    )
+    .await?;
+    tx.commit().await?;
     audit(
         &pool,
         id,
@@ -3786,6 +3961,19 @@ async fn admin_verify_buyer(
         .bind(b.verified as i64)
         .execute(&pool)
         .await?;
+    crate::admin::log(
+        &pool,
+        user.user_id,
+        if b.verified {
+            "buyer.approve"
+        } else {
+            "buyer.unverify"
+        },
+        "user",
+        Some(id),
+        serde_json::json!({}),
+    )
+    .await?;
     Ok(Json(json!({ "id": id, "verified": b.verified })))
 }
 
