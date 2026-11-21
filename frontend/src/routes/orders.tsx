@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { cropEmoji } from "@/lib/crop-catalog";
 import { getSession } from "@/services/session";
 import { OrderDispute } from "@/components/agri/order-dispute";
+import { OrderQualityPanel } from "@/components/agri/quality-ui";
 import { useOrderDetail, useTransactions, type BackendTransaction } from "@/hooks/use-transactions";
 import { MessageLink, OrderStatusPill, PaymentStatusPill } from "@/components/agri/deal-ui";
 import { ORDER_LABEL } from "@/lib/deal-format";
@@ -365,6 +366,7 @@ function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "
               ) : null}
             </div>
           )}
+          <OrderQualityPanel txId={tx.id} isBuyer={myRole === "buyer"} />
           <OrderDispute transactionId={tx.id} />
         </div>
       </div>

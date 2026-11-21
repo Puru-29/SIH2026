@@ -235,6 +235,9 @@ pub struct CreateLotRequest {
     pub quantity_quintals: f64,
     #[validate(length(min = 1))]
     pub expected_quality: String,
+    /// 1–3 photos from the in-app camera (required).
+    #[serde(default)]
+    pub photos: Vec<crate::quality::PhotoIn>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

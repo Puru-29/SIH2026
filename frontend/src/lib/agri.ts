@@ -126,6 +126,8 @@ export type Lot = {
   backendStatus?: string | undefined;
   displayStatus?: "open" | "offer_received" | "sold" | "withdrawn" | "cancelled" | undefined;
   pendingOffers?: number | undefined;
+  /** Live camera photos on the lot. */
+  photoCount?: number | undefined;
   /** Best pending buyer offer, ₹ per quintal. */
   bestOffer?: number | null | undefined;
   perishabilityDays?: number | undefined;

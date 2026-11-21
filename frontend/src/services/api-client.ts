@@ -352,13 +352,98 @@ export interface BackendLot {
   my_offer_status?: string | null;
   my_offer_price?: number | null;
   display_status?: LotDisplayStatus;
+  /** Live camera photos on this lot. */
+  photo_count?: number;
+  /** Farmer's average buyer rating (1–5), review count and grade record. */
+  farmer_rating?: number | null;
+  farmer_review_count?: number;
+  farmer_grade_checks?: number;
+  farmer_grade_matched?: number;
+}
+
+/** A photo taken with the in-app camera (JPEG data URL). */
+export interface CameraPhoto {
+  data_base64: string;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
 }
 
 export interface CreateLotRequest {
   crop_id: number;
   quantity_quintals: number;
   expected_quality: string;
+  /** 1–3 live camera photos (required). */
+  photos: CameraPhoto[];
 }
+
+// ── Crop quality: photos, grade checks, reviews ───────────────────────────────
+export interface LotPhoto {
+  id: number;
+  data_url: string;
+  captured_at: string;
+  has_location: boolean;
+}
+
+export interface FarmerReviews {
+  farmer_id: number;
+  farmer_name: string;
+  rating: number | null;
+  review_count: number;
+  grade_checks: number;
+  grade_matched: number;
+  grade_match_pct: number | null;
+  reviews: {
+    rating: number;
+    comment: string;
+    created_at: string;
+    buyer_name: string;
+    crop_name: string;
+    received_grade: string | null;
+    grade_matched: boolean | null;
+  }[];
+}
+
+export interface OrderQuality {
+  claimed_grade: string;
+  can_check_grade: boolean;
+  can_review: boolean;
+  grade_check: {
+    claimed_grade: string;
+    received_grade: string;
+    matched: boolean;
+    note: string;
+    dispute_id: number | null;
+    photo_url: string | null;
+  } | null;
+  review: { rating: number; comment: string; created_at: string } | null;
+}
+
+export const getLotPhotos = (lotId: number): Promise<LotPhoto[]> =>
+  request<LotPhoto[]>(`/api/lots/${lotId}/photos`);
+
+export const addLotPhoto = (lotId: number, photo: CameraPhoto): Promise<{ id: number }> =>
+  request(`/api/lots/${lotId}/photos`, { method: "POST", body: JSON.stringify(photo) });
+
+export const deleteLotPhoto = (photoId: number): Promise<{ ok: boolean }> =>
+  request(`/api/lot-photos/${photoId}`, { method: "DELETE" });
+
+export const getFarmerReviews = (farmerId: number): Promise<FarmerReviews> =>
+  request<FarmerReviews>(`/api/farmers/${farmerId}/reviews`);
+
+export const getOrderQuality = (txId: number): Promise<OrderQuality> =>
+  request<OrderQuality>(`/api/transactions/${txId}/quality`);
+
+export const submitGradeCheck = (
+  txId: number,
+  body: { received_grade: string; note?: string | undefined; photo?: CameraPhoto },
+): Promise<{ id: number; matched: boolean; dispute_id: number | null }> =>
+  request(`/api/transactions/${txId}/grade-check`, { method: "POST", body: JSON.stringify(body) });
+
+export const submitReview = (
+  txId: number,
+  body: { rating: number; comment?: string | undefined; received_grade?: string },
+): Promise<{ id: number }> =>
+  request(`/api/transactions/${txId}/review`, { method: "POST", body: JSON.stringify(body) });
 
 export const createLot = (body: CreateLotRequest): Promise<BackendLot> =>
   request<BackendLot>("/api/lots", {

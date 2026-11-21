@@ -441,3 +441,24 @@
     overflow-x: auto;
   }
 }
+
+/* Dashboard hero: progress bar on the active suggestion dot. */
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.hero-progress {
+  width: 100%;
+  animation-name: hero-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-progress {
+    animation: none;
+  }
+}

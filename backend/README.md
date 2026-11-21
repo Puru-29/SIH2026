@@ -155,6 +155,20 @@ All paths are under the backend origin. "Auth" means a Bearer token is required;
 | GET | `/api/suppliers?crop=&location=&q=` | buyer, admin | Farmers and verified FPOs with open produce |
 | GET | `/api/suppliers/:kind/:id` | buyer, admin | One supplier (`farmer` or `fpo`) and their open lots |
 
+### Crop quality: photos, grade checks and reviews
+
+New lots need 1–3 photos taken with the in-app camera (the app has no gallery or file upload). The server accepts only JPEG/WebP of 5 KB–1.5 MB and refuses an image already used on any lot. The buyer records the grade that arrived; a lower grade than listed opens a dispute automatically. After delivery the buyer leaves one 1–5 star review. Lots carry the farmer's rating and "grade as listed" record.
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `/api/lots` | farmer, fpo | Now requires `photos: [{ data_base64, latitude?, longitude? }]` (1–3) |
+| GET, POST | `/api/lots/:id/photos` | any / lot owner | List photos (data URLs) / add one more (max 3, open lots) |
+| DELETE | `/api/lot-photos/:id` | lot owner | Remove a photo (an open lot keeps at least one) |
+| POST | `/api/transactions/:id/grade-check` | buyer of the order | `{ received_grade, note?, photo? }` once in transit or delivered; lower grade needs a note or photo and opens a dispute |
+| POST | `/api/transactions/:id/review` | buyer of the order | `{ rating 1–5, comment?, received_grade? }` once delivered (grade needed if not checked on arrival) |
+| GET | `/api/transactions/:id/quality` | buyer, farmer, admin | This order's grade check and review |
+| GET | `/api/farmers/:id/reviews` | any | Rating, grade record and latest reviews |
+
 ### Messages and notifications
 
 | Method | Path | Role | Purpose |

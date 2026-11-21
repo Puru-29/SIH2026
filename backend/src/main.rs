@@ -7,6 +7,7 @@ mod handlers;
 mod market;
 mod migrate_fix;
 mod models;
+mod quality;
 mod seed;
 mod seed_demo;
 mod services;
@@ -145,6 +146,7 @@ async fn main() {
         .merge(market::routes())
         .merge(fpo::routes())
         .merge(admin::routes())
+        .merge(quality::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(pool);

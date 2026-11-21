@@ -105,7 +105,7 @@ fn clean(value: Option<&str>, field: &str, max: usize) -> Result<Option<String>,
     }
 }
 
-fn rupees(x: f64) -> String {
+pub(crate) fn rupees(x: f64) -> String {
     let n = x.round() as i64;
     let s = n.abs().to_string();
     // Indian grouping: last 3 digits, then pairs.
@@ -314,6 +314,14 @@ pub struct LotView {
     pub cancel_reason: Option<String>,
     pub my_offer_status: Option<String>,
     pub my_offer_price: Option<f64>,
+    /// Live camera photos on this lot.
+    pub photo_count: i64,
+    /// The farmer's average buyer rating (1–5) and number of reviews.
+    pub farmer_rating: Option<f64>,
+    pub farmer_review_count: i64,
+    /// Orders where the buyer checked the grade, and how many arrived as listed.
+    pub farmer_grade_checks: i64,
+    pub farmer_grade_matched: i64,
     /// open → offer_received → sold (or withdrawn / cancelled)
     #[sqlx(skip)]
     pub display_status: String,
@@ -329,7 +337,12 @@ const LOT_SELECT: &str = "SELECT l.id, l.farmer_id, u.name AS farmer_name,
           WHERE o.lot_id = l.id AND o.status = 'pending' AND o.created_by_role = 'buyer') AS best_offer,
         l.cancel_reason,
         (SELECT o.status FROM offers o WHERE o.lot_id = l.id AND o.buyer_id = ? ORDER BY o.id DESC LIMIT 1) AS my_offer_status,
-        (SELECT CAST(o.price_offered AS REAL) FROM offers o WHERE o.lot_id = l.id AND o.buyer_id = ? ORDER BY o.id DESC LIMIT 1) AS my_offer_price
+        (SELECT CAST(o.price_offered AS REAL) FROM offers o WHERE o.lot_id = l.id AND o.buyer_id = ? ORDER BY o.id DESC LIMIT 1) AS my_offer_price,
+        (SELECT COUNT(*) FROM lot_photos p WHERE p.lot_id = l.id) AS photo_count,
+        (SELECT CAST(AVG(r.rating) AS REAL) FROM farmer_reviews r WHERE r.farmer_id = l.farmer_id) AS farmer_rating,
+        (SELECT COUNT(*) FROM farmer_reviews r WHERE r.farmer_id = l.farmer_id) AS farmer_review_count,
+        (SELECT COUNT(*) FROM grade_checks g WHERE g.farmer_id = l.farmer_id) AS farmer_grade_checks,
+        (SELECT COALESCE(SUM(g.matched), 0) FROM grade_checks g WHERE g.farmer_id = l.farmer_id) AS farmer_grade_matched
      FROM lots l
      JOIN users u ON u.id = l.farmer_id
      JOIN crops c ON c.id = l.crop_id

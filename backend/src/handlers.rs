@@ -259,7 +259,29 @@ pub async fn create_lot(
 ) -> Result<Json<crate::models::Lot>, AppError> {
     payload.validate()?;
     require_role(&pool, auth_user.user_id, &["farmer", "fpo"]).await?;
-    let lot = db::create_lot(&pool, auth_user.user_id, &payload).await?;
+    // Buyers judge quality from live camera photos, so every new lot needs 1–3.
+    if payload.photos.is_empty() {
+        return Err(AppError::BadRequest(
+            "Take at least one photo of the crop with the camera before listing the lot".into(),
+        ));
+    }
+    if payload.photos.len() > crate::quality::MAX_PHOTOS_PER_LOT {
+        return Err(AppError::BadRequest(format!(
+            "A lot can have at most {} photos",
+            crate::quality::MAX_PHOTOS_PER_LOT
+        )));
+    }
+    let photos = payload
+        .photos
+        .iter()
+        .map(crate::quality::check_photo)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut tx = pool.begin().await?;
+    let lot = db::create_lot(&mut *tx, auth_user.user_id, &payload).await?;
+    for p in &photos {
+        crate::quality::insert_photo(&mut *tx, lot.id, auth_user.user_id, p).await?;
+    }
+    tx.commit().await?;
     if let Err(e) = crate::market::notify_matching_buyers(&pool, lot.id).await {
         tracing::warn!("could not notify buyers about lot {}: {e:?}", lot.id);
     }

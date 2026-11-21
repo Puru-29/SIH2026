@@ -340,11 +340,14 @@ pub async fn get_lot(pool: &SqlitePool, lot_id: i64) -> Result<Option<Lot>, sqlx
     .await
 }
 
-pub async fn create_lot(
-    pool: &SqlitePool,
+pub async fn create_lot<'c, E>(
+    ex: E,
     farmer_id: i64,
     req: &CreateLotRequest,
-) -> Result<Lot, sqlx::Error> {
+) -> Result<Lot, sqlx::Error>
+where
+    E: sqlx::Executor<'c, Database = sqlx::Sqlite>,
+{
     sqlx::query_as::<_, Lot>(
         "INSERT INTO lots (farmer_id, crop_id, quantity_quintals, expected_quality, status)
          VALUES (?, ?, ?, ?, 'open')
@@ -356,7 +359,7 @@ pub async fn create_lot(
     .bind(&req.expected_quality)
     // fetch_all steps the statement to completion so the insert is committed
     // before the next query (fetch_one can leave it open on another connection).
-    .fetch_all(pool)
+    .fetch_all(ex)
     .await?
     .pop()
     .ok_or(sqlx::Error::RowNotFound)

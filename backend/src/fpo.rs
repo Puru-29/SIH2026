@@ -493,7 +493,7 @@ struct Upload {
     data_base64: String,
 }
 
-fn decode_base64(input: &str) -> Option<Vec<u8>> {
+pub(crate) fn decode_base64(input: &str) -> Option<Vec<u8>> {
     let s = match input.find("base64,") {
         Some(i) => &input[i + 7..],
         None => input,
@@ -1592,7 +1592,7 @@ async fn list_buyers(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResul
     ))
 }
 
-fn grade_rank(s: &str) -> Option<i32> {
+pub(crate) fn grade_rank(s: &str) -> Option<i32> {
     let u = s.to_uppercase();
     if u.contains("EXPORT") || u.contains("GRADE A") || u.trim() == "A" {
         Some(3)
@@ -2872,8 +2872,9 @@ async fn create_distribution(
                 "payment",
                 &format!("Your {} payout is ready", sale.crop_name),
                 &format!(
-                    "{} calculated your share: ₹{net:.2} after deductions.",
-                    org.name
+                    "{} calculated your share: {} after deductions.",
+                    org.name,
+                    crate::market::rupees(net)
                 ),
                 "/my-fpo",
             )
@@ -2933,7 +2934,7 @@ async fn pay_payout(
         &pool,
         member_id,
         "payment",
-        &format!("₹{net:.2} paid by {}", org.name),
+        &format!("{} paid by {}", crate::market::rupees(net), org.name),
         &format!(
             "Your {} payout was paid on {paid_on}. Reference: {reference}.",
             sale.crop_name

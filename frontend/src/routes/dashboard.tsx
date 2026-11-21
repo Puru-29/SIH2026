@@ -11,6 +11,8 @@ import {
   IndianRupee,
   MapPin,
   Package,
+  Pause,
+  Play,
   Plus,
   Search,
 } from "lucide-react";
@@ -18,6 +20,7 @@ import { PortalLayout } from "@/components/agri/portal-layout";
 import { ConfirmDistrict } from "@/components/agri/confirm-district";
 import { Metric, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
+import { placeLabel } from "@/lib/places";
 import { inr, kg, type LotStatus } from "@/lib/agri";
 import { normaliseCropName } from "@/lib/crop-catalog";
 import { pickHeroLot, rankOpenLots, useMyLots } from "@/hooks/use-my-lots";
@@ -114,8 +117,7 @@ function FarmerDashboard() {
         <p className="eyebrow">{new Date().toDateString()}</p>
         <h1 className="mt-2 font-serif text-4xl">{t("Namaste, {name} 🙏", { name: firstName })}</h1>
         <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin className="h-4 w-4" /> {location.name}, {location.district}, {location.state} ·{" "}
-          {location.belt}
+          <MapPin className="h-4 w-4" /> {placeLabel(location)}
         </p>
       </div>
 
@@ -377,20 +379,19 @@ function HeroCarousel({ lots }: { lots: Lot[] }) {
     }
   }, [lots, qc]);
 
+  // Auto-advance. Keyed on `tick`, so picking a slide restarts the 5-second wait.
   useEffect(() => {
     if (paused || slides < 2) return;
-    const timer = setInterval(() => setTick((n) => n + 1), ROTATE_MS);
-    return () => clearInterval(timer);
-  }, [paused, slides]);
+    const timer = setTimeout(() => setTick((n) => n + 1), ROTATE_MS);
+    return () => clearTimeout(timer);
+  }, [paused, slides, tick]);
 
   return (
-    <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-    >
-      <div key={`${lot.id}-${buyerIndex}`} className="animate-in fade-in duration-500">
+    <div className="overflow-hidden">
+      <div
+        key={`${lot.id}-${buyerIndex}`}
+        className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-8 duration-500"
+      >
         <HeroDecision lot={lot} buyerIndex={buyerIndex} />
       </div>
       {slides > 1 && (
@@ -403,16 +404,37 @@ function HeroCarousel({ lots }: { lots: Lot[] }) {
               aria-label={`${t("Suggestion")} ${i + 1}`}
               onClick={() => setTick(i)}
               className={cn(
-                "h-2 rounded-full transition-all",
-                i === index ? "w-6 bg-primary-foreground" : "w-2 bg-primary-foreground/40",
+                "relative h-2 overflow-hidden rounded-full transition-all",
+                i === index ? "w-8 bg-primary-foreground/40" : "w-2 bg-primary-foreground/40",
               )}
-            />
+            >
+              {i === index && (
+                // Fills up until the next slide; stops while paused.
+                <span
+                  key={tick}
+                  className="hero-progress absolute inset-y-0 left-0 rounded-full bg-primary-foreground"
+                  style={{
+                    animationDuration: `${ROTATE_MS}ms`,
+                    animationPlayState: paused ? "paused" : "running",
+                  }}
+                />
+              )}
+            </button>
           ))}
           <button
             onClick={() => setTick((n) => n + 1)}
             className="ml-2 text-xs text-primary-foreground/70 underline-offset-4 hover:underline"
           >
             {t("Next suggestion")}
+          </button>
+          <button
+            onClick={() => setPaused((p) => !p)}
+            aria-pressed={paused}
+            aria-label={paused ? t("Play suggestions") : t("Pause suggestions")}
+            title={paused ? t("Play") : t("Pause")}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+          >
+            {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </button>
         </div>
       )}

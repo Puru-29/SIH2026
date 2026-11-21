@@ -66,6 +66,7 @@ export function useMyLots() {
       return {
         id: `LOT-${l.id}`,
         backendId: l.id,
+        photoCount: l.photo_count,
         cropId: l.crop_id,
         crop: cropName,
         emoji: cropEmoji(cropName),

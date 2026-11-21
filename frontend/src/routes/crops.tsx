@@ -4,10 +4,13 @@ import { CalendarDays, Gavel, Loader2, MapPin, Pencil, Plus, Search, Undo2 } fro
 import { PortalLayout } from "@/components/agri/portal-layout";
 import { PageHeader, Panel, Pill, StatusTag } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
+import { placeLabel } from "@/lib/places";
 import { inr, kg, type Lot } from "@/lib/agri";
 import { useCreateLot } from "@/hooks/use-lots";
 import { useCatalogueCrops, useEnsureCrop, useMyLots } from "@/hooks/use-my-lots";
 import { RequestCrop } from "@/components/agri/request-crop";
+import { OwnLotPhotos, PhotoPicker } from "@/components/agri/quality-ui";
+import type { CameraPhoto } from "@/services/api-client";
 import { useUpdateLot, useWithdrawLot } from "@/hooks/use-market";
 import { cropEmoji } from "@/lib/crop-catalog";
 import { toast } from "sonner";
@@ -78,6 +81,7 @@ function Crops() {
   const [cropSearch, setCropSearch] = useState("");
   const [formQuantity, setFormQuantity] = useState("5000");
   const [formQuality, setFormQuality] = useState("Grade A");
+  const [formPhotos, setFormPhotos] = useState<CameraPhoto[]>([]);
   // Edit / withdraw state
   const [editing, setEditing] = useState<Lot | null>(null);
   const [editQty, setEditQty] = useState("");
@@ -105,6 +109,10 @@ function Crops() {
       toast.error(t("Enter a valid quantity"));
       return;
     }
+    if (formPhotos.length === 0) {
+      toast.error(t("Take at least one photo of the crop with the camera"));
+      return;
+    }
     try {
       // Resolve the crop name to a backend crop id (creating it if needed).
       const crop = await ensureCrop.mutateAsync(formCrop);
@@ -112,7 +120,9 @@ function Crops() {
         crop_id: crop.id,
         quantity_quintals: qtyNum / 100, // API expects quintals
         expected_quality: formQuality,
+        photos: formPhotos,
       });
+      setFormPhotos([]);
       toast.success(`${t("Lot registered")}: LOT-${backendLot.id}`, {
         description: `${kg(qtyNum)} ${t(crop.name)} (${formQuality}). ${t("Buyers looking for this crop have been told.")}`,
       });
@@ -286,9 +296,13 @@ function Crops() {
                 ))}
               </div>
 
+              {lot.backendId && (
+                <OwnLotPhotos lotId={lot.backendId} count={lot.photoCount ?? 0} editable={open} />
+              )}
+
               <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
                 <Pill>
-                  <MapPin className="h-3.5 w-3.5" /> {location.name}, {location.district}
+                  <MapPin className="h-3.5 w-3.5" /> {placeLabel(location, false)}
                 </Pill>
                 <Pill>
                   <CalendarDays className="h-3.5 w-3.5" /> {t("Listed")}{" "}
@@ -475,6 +489,8 @@ function Crops() {
                   <RequestCrop key={cropSearch} initial={cropSearch.trim()} />
                 </div>
               </div>
+
+              <PhotoPicker photos={formPhotos} onChange={setFormPhotos} />
 
               <div>
                 <label className="text-sm text-muted-foreground">{t("Quantity (kg)")}</label>

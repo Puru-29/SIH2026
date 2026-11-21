@@ -7,6 +7,7 @@ import { PageHeader, Panel, Pill } from "@/components/agri/ui-bits";
 import { useCreateOffer, useOffers } from "@/hooks/use-offers";
 import { useLots } from "@/hooks/use-lots";
 import { BuyerFpoMarket } from "@/components/fpo/buyer-fpo-market";
+import { FarmerRating, LotPhotos } from "@/components/agri/quality-ui";
 import { useI18n } from "@/lib/i18n";
 import { FormActions, Input, Loading, Modal, shortDate } from "@/components/fpo/fpo-ui";
 import {
@@ -177,6 +178,8 @@ function BrowseProduce() {
                   <p>{lot.best_offer ? inrKg(lot.best_offer) : t("None yet")}</p>
                 </div>
               </div>
+              <FarmerRating lot={lot} />
+              <LotPhotos lotId={lot.id} count={lot.photo_count} />
               <p className="mt-4 text-xs text-muted-foreground">
                 {t("Listed")} {shortDate(lot.created_at)}
                 {lot.my_offer_price
