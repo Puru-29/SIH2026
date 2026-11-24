@@ -86,6 +86,7 @@ const hi: TranslationDict = {
   "Choose language": "भाषा चुनें",
   "Sign in": "साइन इन",
   "Open portal": "पोर्टल खोलें",
+  "Create account": "खाता बनाएं",
   "Enter the portal": "पोर्टल में जाएं",
   "Mark all read": "सभी पढ़ा हुआ करें",
   "Mark all as read": "सभी पढ़ा हुआ करें",

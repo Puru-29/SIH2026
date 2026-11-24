@@ -25,6 +25,8 @@ import {
 import { LanguageSelector } from "@/components/agri/language-selector";
 import { FontSizeControl } from "@/components/agri/font-size-control";
 import { useI18n } from "@/lib/i18n";
+import { useEffect, useState } from "react";
+import { getSession, homeFor, type AgriSession } from "@/services/session";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -65,15 +67,7 @@ function Landing() {
         <div className="flex items-center gap-3">
           <FontSizeControl className="hidden sm:flex" />
           <LanguageSelector className="hidden sm:flex" />
-          <Link to="/auth" className="hidden text-sm text-muted-foreground sm:block">
-            {tr("Sign in")}
-          </Link>
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
-          >
-            {tr("Open portal")} <ArrowRight className="h-4 w-4" />
-          </Link>
+          <HeaderAuth />
         </div>
       </header>
 
@@ -412,5 +406,40 @@ function Landing() {
         </div>
       </footer>
     </div>
+  );
+}
+
+/** Signed out: Sign in + Create account. Signed in: Open portal (their own home). */
+function HeaderAuth() {
+  const { t } = useI18n();
+  // Read the session after mount so the server-rendered HTML matches the first render.
+  const [session, setSession] = useState<AgriSession | null>(null);
+  useEffect(() => setSession(getSession()), []);
+
+  if (session) {
+    return (
+      <Link
+        to={homeFor(session.role)}
+        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+      >
+        {t("Open portal")} <ArrowRight className="h-4 w-4" />
+      </Link>
+    );
+  }
+  return (
+    <>
+      <Link
+        to="/auth"
+        className="inline-flex items-center rounded-full border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary"
+      >
+        {t("Sign in")}
+      </Link>
+      <Link
+        to="/register"
+        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+      >
+        {t("Create account")} <ArrowRight className="hidden h-4 w-4 sm:block" />
+      </Link>
+    </>
   );
 }
