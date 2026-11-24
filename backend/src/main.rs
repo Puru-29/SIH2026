@@ -1,4 +1,5 @@
 mod admin;
+mod agribot;
 mod auth;
 mod db;
 mod errors;
@@ -11,6 +12,7 @@ mod quality;
 mod seed;
 mod seed_demo;
 mod services;
+mod verification;
 
 use axum::response::Redirect;
 use axum::{
@@ -80,6 +82,12 @@ async fn main() {
     if let Err(e) = seed_demo::ensure_demo_data(&pool).await {
         tracing::error!("Failed to add sample data: {}", e);
     }
+    if let Err(e) = verification::ensure_samples(&pool).await {
+        tracing::error!("Failed to add sample buyer verifications: {:?}", e);
+    }
+    if let Err(e) = verification::purge_expired(&pool).await {
+        tracing::error!("Failed to purge expired documents: {:?}", e);
+    }
 
     let frontend_url =
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
@@ -147,6 +155,8 @@ async fn main() {
         .merge(fpo::routes())
         .merge(admin::routes())
         .merge(quality::routes())
+        .merge(verification::routes())
+        .merge(agribot::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(pool);

@@ -32,6 +32,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RequirementsRouteImport } from './routes/requirements'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
+import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAnnouncementsRouteImport } from './routes/admin.announcements'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
@@ -172,6 +173,11 @@ const StorageRoute = StorageRouteImport.update({
 const SuppliersRoute = SuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerificationRoute = VerificationRouteImport.update({
+  id: '/verification',
+  path: '/verification',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/verification': typeof VerificationRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/disputes': typeof AdminDisputesRoute
@@ -378,6 +385,7 @@ export interface FileRoutesByTo {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/verification': typeof VerificationRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/disputes': typeof AdminDisputesRoute
@@ -430,6 +438,7 @@ export interface FileRoutesById {
   '/requirements': typeof RequirementsRoute
   '/storage': typeof StorageRoute
   '/suppliers': typeof SuppliersRoute
+  '/verification': typeof VerificationRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/disputes': typeof AdminDisputesRoute
@@ -483,6 +492,7 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/verification'
     | '/admin/announcements'
     | '/admin/audit'
     | '/admin/disputes'
@@ -532,6 +542,7 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/verification'
     | '/admin/announcements'
     | '/admin/audit'
     | '/admin/disputes'
@@ -583,6 +594,7 @@ export interface FileRouteTypes {
     | '/requirements'
     | '/storage'
     | '/suppliers'
+    | '/verification'
     | '/admin/announcements'
     | '/admin/audit'
     | '/admin/disputes'
@@ -635,6 +647,7 @@ export interface RootRouteChildren {
   RequirementsRoute: typeof RequirementsRoute
   StorageRoute: typeof StorageRoute
   SuppliersRoute: typeof SuppliersRoute
+  VerificationRoute: typeof VerificationRoute
   AdminLoginRoute: typeof AdminLoginRoute
   InvoiceIdRoute: typeof InvoiceIdRoute
   SuppliersKindIdRoute: typeof SuppliersKindIdRoute
@@ -801,6 +814,13 @@ declare module '@tanstack/react-router' {
       path: '/suppliers'
       fullPath: '/suppliers'
       preLoaderRoute: typeof SuppliersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verification': {
+      id: '/verification'
+      path: '/verification'
+      fullPath: '/verification'
+      preLoaderRoute: typeof VerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1074,6 +1094,7 @@ const rootRouteChildren: RootRouteChildren = {
   RequirementsRoute: RequirementsRoute,
   StorageRoute: StorageRoute,
   SuppliersRoute: SuppliersRoute,
+  VerificationRoute: VerificationRoute,
   AdminLoginRoute: AdminLoginRoute,
   InvoiceIdRoute: InvoiceIdRoute,
   SuppliersKindIdRoute: SuppliersKindIdRoute,

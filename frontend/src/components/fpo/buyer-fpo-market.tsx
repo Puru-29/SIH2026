@@ -4,6 +4,9 @@
  */
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ContactCard } from "@/components/agri/trust-ui";
+import { verificationApi } from "@/services/verification-api";
 import { toast } from "sonner";
 import { Handshake, Layers } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -141,6 +144,16 @@ export function BuyerFpoMarket() {
         </div>
       )}
       {offering && <MakeOfferModal lot={offering} onClose={() => setOffering(null)} />}
+      {(offers.data ?? []).some((o) => o.status === "accepted") && (
+        <div className="space-y-3">
+          <h3 className="font-medium">{t("Confirmed FPO deals — contact")}</h3>
+          {(offers.data ?? [])
+            .filter((o) => o.status === "accepted")
+            .map((o) => (
+              <FpoDealContact key={o.id} offerId={o.id} />
+            ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -218,4 +231,13 @@ function MakeOfferModal({ lot, onClose }: { lot: FpoLot; onClose: () => void }) 
       </form>
     </Modal>
   );
+}
+
+function FpoDealContact({ offerId }: { offerId: number }) {
+  const q = useQuery({
+    queryKey: ["fpo-offer-contact", offerId],
+    queryFn: () => verificationApi.fpoOfferContact(offerId),
+    staleTime: 5 * 60_000,
+  });
+  return <ContactCard contact={q.data} />;
 }

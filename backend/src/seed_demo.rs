@@ -4,7 +4,7 @@
 //! already there and only fills in what is missing, so it is safe to run again
 //! and never touches data created by real users.
 //!
-//! Sample account logins (PIN = DEMO_PIN, default 1234):
+//! Sample account logins (PIN = SEED_PIN, default 1234):
 //! - Farmer: 9876543210 (Ramesh Kumar), also a member of the sample FPO
 //! - Buyer: 1234567890 (FreshFarm Retail)
 //! - FPO: 9988776655 (Punjab Kisan FPO), plus member farmers 9876500001–06
@@ -22,7 +22,8 @@ use crate::{
 const DEMO_FPO_MANAGER: i64 = 3;
 
 fn demo_pin() -> String {
-    std::env::var("DEMO_PIN")
+    std::env::var("SEED_PIN")
+        .or_else(|_| std::env::var("DEMO_PIN"))
         .ok()
         .filter(|p| p.len() == 4 && p.chars().all(|c| c.is_ascii_digit()))
         .unwrap_or_else(|| "1234".into())

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { BuyerTrustBadge } from "@/components/agri/trust-ui";
 import { useMemo, useState } from "react";
 import { Handshake, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -122,7 +123,7 @@ function MarketplacePage() {
                   return (
                     <tr key={o.id} className={i === 0 ? "bg-accent/40" : undefined}>
                       <td className="font-medium">
-                        {o.buyer_name}
+                        {o.buyer_name} <BuyerTrustBadge buyerId={o.buyer_id} />
                         {i === 0 && (
                           <span className="ml-2">
                             <Badge label="Highest price" tone="green" />

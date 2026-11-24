@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { BadgeCheck, Clock, Save } from "lucide-react";
 import { LANGUAGES, useI18n, type LangCode } from "@/lib/i18n";
 import { fpoApi, type FpoOrg } from "@/services/fpo-api";
+import { PhoneVerifyCard } from "@/components/agri/trust-ui";
+import { useMyProfile } from "@/hooks/use-market";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import {
   Btn,
@@ -143,6 +145,7 @@ function SettingsPage() {
               </p>
             )}
           </Card>
+          <PhonePanel />
           <Card title="Language">
             <Select
               id="st-lang"
@@ -180,4 +183,9 @@ function SettingsPage() {
       </Card>
     </>
   );
+}
+
+function PhonePanel() {
+  const me = useMyProfile();
+  return <PhoneVerifyCard verified={Boolean(me.data?.phone_verified)} />;
 }

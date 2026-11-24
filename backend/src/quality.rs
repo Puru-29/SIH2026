@@ -128,6 +128,12 @@ where
     })
 }
 
+/// Test helper shared with other modules.
+#[cfg(test)]
+pub fn tests_b64(bytes: &[u8]) -> String {
+    base64_encode(bytes)
+}
+
 fn base64_encode(bytes: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);

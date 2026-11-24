@@ -683,7 +683,12 @@ pub async fn create_offer(
         )));
     }
     let buyer_id = if user.role == "buyer" {
-        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+        crate::verification::require_buyer_can_trade(
+            &pool,
+            user.user_id,
+            body.price_offered * lot.quantity_quintals,
+        )
+        .await?;
         if lot.farmer_id == user.user_id {
             return Err(bad("You cannot bid on your own lot"));
         }
@@ -775,7 +780,12 @@ pub async fn accept_offer(
     let role = party_role(&offer, &user)?;
     deals::can_respond(&offer.status, &offer.created_by_role, role).map_err(bad)?;
     if role == "buyer" {
-        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+        crate::verification::require_buyer_can_trade(
+            &pool,
+            user.user_id,
+            offer.price_offered * offer.quantity_quintals,
+        )
+        .await?;
     }
     if offer.lot_status != "open" {
         return Err(bad(format!(
@@ -944,7 +954,12 @@ async fn counter_offer(
     deals::can_respond(&offer.status, &offer.created_by_role, role).map_err(bad)?;
     deals::validate_counter_price(offer.price_offered, body.price).map_err(bad)?;
     if role == "buyer" {
-        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+        crate::verification::require_buyer_can_trade(
+            &pool,
+            user.user_id,
+            body.price * offer.quantity_quintals,
+        )
+        .await?;
     }
     if offer.lot_status != "open" {
         return Err(bad(format!("This lot is {}", offer.lot_status)));
@@ -1174,11 +1189,16 @@ async fn order_detail(
         freight,
         deals::platform_fee_percent(),
     );
-    let counterpart = if role == "buyer" {
-        json!({ "id": order.farmer_id, "name": order.farmer_name, "role": "farmer" })
-    } else {
-        json!({ "id": order.buyer_id, "name": order.buyer_name, "role": "buyer" })
-    };
+    // Real phone numbers are shared only here: with the two parties (and admins), after acceptance.
+    let counterpart = crate::verification::contact(
+        &pool,
+        if role == "buyer" {
+            order.farmer_id
+        } else {
+            order.buyer_id
+        },
+    )
+    .await?;
     let steps: Vec<&str> = events.iter().map(|e| e.status.as_str()).collect();
     let current = deals::current_step(steps);
     Ok(Json(json!({
@@ -2375,7 +2395,8 @@ async fn send_message(
 /*                                   profile                                  */
 /* -------------------------------------------------------------------------- */
 
-const LANGUAGES: [&str; 6] = ["en", "hi", "mr", "pa", "gu", "ur"];
+/// Languages the app is offered in.
+const LANGUAGES: [&str; 2] = ["en", "hi"];
 
 /// GET /api/me — profile fields and simple stats.
 async fn get_profile(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResult<Value> {
@@ -2402,6 +2423,12 @@ async fn get_profile(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResul
         ),
         _ => (None, None),
     };
+    let phone_verified: bool =
+        sqlx::query_scalar::<_, Option<String>>("SELECT phone_verified_at FROM users WHERE id = ?")
+            .bind(user.user_id)
+            .fetch_one(&pool)
+            .await?
+            .is_some();
     let buyer: Option<(i64, f64)> =
         sqlx::query_as("SELECT is_verified, CAST(trust_score AS REAL) FROM buyers WHERE id = ?")
             .bind(user.user_id)
@@ -2434,6 +2461,7 @@ async fn get_profile(State(pool): State<SqlitePool>, user: AuthUser) -> ApiResul
         "needs_district": user.role == "farmer" && crate::admin::location_needs_district(location.as_deref()),
         "urgency_level": urgency,
         "verified": buyer.map(|b| b.0 == 1), "trust_score": buyer.map(|b| b.1),
+        "phone_verified": phone_verified,
         "stats": {
             "lots": lots, "open_lots": open_lots, "deals": deals, "deal_value": r2(value),
             "open_requirements": requirements,

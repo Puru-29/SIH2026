@@ -376,30 +376,33 @@ export function NetRealisationCard({ detail }: { detail: OrderDetail }) {
 export function RouteSummary({ detail }: { detail: OrderDetail }) {
   const { t } = useI18n();
   const o = detail.order;
+  // Full-width rows: readable at any panel width (a 3-column grid wrapped badly in narrow panels).
+  const rows: [typeof MapPin, string, string, boolean][] = [
+    [MapPin, "Pickup", o.pickup_location || t("Farmer's location not set"), !o.pickup_location],
+    [MapPin, "Drop", o.delivery_location || t("Buyer's location not set"), !o.delivery_location],
+    [
+      Truck,
+      "Freight",
+      detail.net_realisation.freight_known
+        ? `${inrKg(detail.net_realisation.freight_per_quintal)} · ${inrAmount(detail.net_realisation.transport)}`
+        : t("Not known for this route"),
+      !detail.net_realisation.freight_known,
+    ],
+  ];
   return (
-    <div className="grid gap-3 text-sm sm:grid-cols-3">
-      <div className="rounded-2xl border border-border p-3">
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5" /> {t("Pickup")}
-        </p>
-        <p className="mt-1">{o.pickup_location || t("Farmer's location not set")}</p>
-      </div>
-      <div className="rounded-2xl border border-border p-3">
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5" /> {t("Drop")}
-        </p>
-        <p className="mt-1">{o.delivery_location || t("Buyer's location not set")}</p>
-      </div>
-      <div className="rounded-2xl border border-border p-3">
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Truck className="h-3.5 w-3.5" /> {t("Freight")}
-        </p>
-        <p className="mt-1">
-          {detail.net_realisation.freight_known
-            ? `${inrKg(detail.net_realisation.freight_per_quintal)} · ${inrAmount(detail.net_realisation.transport)}`
-            : t("Not known for this route")}
-        </p>
-      </div>
-    </div>
+    <ul className="divide-y divide-border rounded-2xl border border-border text-sm">
+      {rows.map(([Icon, label, value, missing]) => (
+        <li key={label} className="flex items-center justify-between gap-4 px-4 py-3">
+          <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
+            <Icon className="h-4 w-4" /> {t(label)}
+          </span>
+          <span
+            className={cn("min-w-0 text-right", missing ? "text-muted-foreground" : "font-medium")}
+          >
+            {value}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

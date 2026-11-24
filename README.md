@@ -1,6 +1,6 @@
 # AgriSense — Agricultural Market Intelligence
 
-AgriSense is a Smart India Hackathon (SIH 2026) prototype that helps farmers, Farmer Producer Organisations (FPOs) and buyers trade crops on better terms. It answers one question for the farmer: **which buyer or market gives the best practical return after freight, storage, timing and crop risk?**
+AgriSense is a platform that helps farmers, Farmer Producer Organisations (FPOs) and buyers trade crops on better terms. It answers one question for the farmer: **which buyer or market gives the best practical return after freight, storage, timing and crop risk?**
 
 It brings together live mandi prices, buyer requirements, sell/hold advice, negotiation, order tracking, payments, FPO crop pooling and an admin console, all backed by one Rust API and a SQLite database.
 
@@ -20,9 +20,9 @@ Small farmers usually sell at the nearest mandi on the day of harvest, without k
 - lets **FPOs pool** members' crops into bulk lots, sell them, and split the money fairly by quantity and grade;
 - gives the **admin** verification, dispute handling, market monitoring and an audit log.
 
-## Portals and local sample accounts
+## Portals and starter accounts
 
-Sample accounts and records are added automatically when the backend starts. All sample account PINs are `1234` (change them with `DEMO_PIN`).
+Starter accounts and records are added automatically when the backend starts. Their PINs are `1234` (change them with `SEED_PIN`).
 
 | Portal | Sign in at | Phone | What to try |
 |---|---|---|---|
@@ -70,7 +70,7 @@ cargo run
 
 On macOS or Linux: `cd backend && cp .env.example .env && PORT=3001 cargo run`.
 
-The first start creates `backend/agri_prototype.db`, applies the migrations and loads sample records. Check it with `curl http://localhost:3001/health`.
+The first start creates `backend/agri_prototype.db`, applies the migrations and loads starter records. Check it with `curl http://localhost:3001/health`.
 
 **2. Frontend** (second terminal):
 
@@ -102,7 +102,7 @@ npm run build
 5. Message each other from the order or lot (**Messages**, refreshed every 10 seconds).
 6. **Farmer** marks the order picked up and in transit; **buyer** marks it delivered (**Orders** or **Logistics**).
 7. **Buyer** records the payment on **Payments**; **farmer** confirms it was received. The order becomes completed, and the invoice is on `/invoice/<order id>`.
-8. **FPO**: sign in as the sample FPO to see pools, intake, sales and the payout split. **Admin**: approve the waiting FPO and buyer, review the open dispute, and check the audit log.
+8. **FPO**: sign in as the starter FPO to see pools, intake, sales and the payout split. **Admin**: approve the waiting FPO and buyer, review the open dispute, and check the audit log.
 
 ## Repository layout
 

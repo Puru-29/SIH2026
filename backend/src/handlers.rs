@@ -294,7 +294,7 @@ pub async fn get_matching_buyers(
     State(pool): State<SqlitePool>,
     auth_user: AuthUser,
     Path(lot_id): Path<i64>,
-) -> Result<Json<Vec<crate::services::matcher::Ranked>>, AppError> {
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     let lot = db::get_lot(&pool, lot_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Lot not found: id={lot_id}")))?;
@@ -313,9 +313,17 @@ pub async fn get_matching_buyers(
         c.freight_per_quintal =
             crate::market::freight_per_quintal(&pool, &origin, &c.delivery_location).await?;
     }
-    Ok(Json(crate::services::matcher::rank(
-        lot.quantity_quintals,
-        &lot.expected_quality,
-        &candidates,
-    )))
+    // Best match first, then Trusted > Verified Business > ID Verified > Unverified (stable).
+    let ranked =
+        crate::services::matcher::rank(lot.quantity_quintals, &lot.expected_quality, &candidates);
+    let mut out = Vec::with_capacity(ranked.len());
+    for r in ranked {
+        let badge = crate::verification::buyer_badge(&pool, r.buyer_id).await?;
+        let mut v =
+            serde_json::to_value(&r).map_err(|e| AppError::InternalServerError(e.into()))?;
+        v["badge"] = badge;
+        out.push(v);
+    }
+    out.sort_by_key(|v| -v["badge"]["rank"].as_i64().unwrap_or(0));
+    Ok(Json(out))
 }

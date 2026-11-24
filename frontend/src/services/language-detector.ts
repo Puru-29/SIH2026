@@ -1,5 +1,5 @@
 /**
- * Automatic Language Detection Engine for AgriConnect AgriBot (SIH 26132)
+ * Automatic Language Detection Engine for AgriConnect AgriBot
  *
  * Supports:
  *  - "en"       : English (Latin script)
@@ -9,14 +9,14 @@
  *  - "hinglish" : Hinglish (Hindi/Marathi conversational phrased in Roman/Latin script)
  */
 
-export type SupportedBotLang = "en" | "hi" | "mr" | "pa" | "hinglish";
+export type SupportedBotLang = "en" | "hi" | "mr" | "pa" | "gu" | "hinglish";
 
 export interface DetectionResult {
   lang: SupportedBotLang;
   confidence: number;
-  script: "Devanagari" | "Gurmukhi" | "Latin" | "Other";
+  script: "Devanagari" | "Gurmukhi" | "Gujarati" | "Latin" | "Other";
   details: {
-    scores: Record<SupportedBotLang, number>;
+    scores: Partial<Record<SupportedBotLang, number>>;
     matchedMarkers: string[];
     isShortInput: boolean;
   };
@@ -186,6 +186,62 @@ const HINDI_DEVANAGARI_WORDS = new Set([
   "अभी",
   "आज",
   "कल",
+]);
+
+/**
+ * Very common English words. Some ("me", "the", "to") are also Hinglish words,
+ * so they count as English: a message is Hinglish only when Hindi words win.
+ */
+const ENGLISH_COMMON = new Set([
+  "the",
+  "me",
+  "to",
+  "of",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "what",
+  "how",
+  "when",
+  "where",
+  "which",
+  "why",
+  "who",
+  "tell",
+  "give",
+  "show",
+  "price",
+  "prices",
+  "my",
+  "i",
+  "you",
+  "your",
+  "please",
+  "for",
+  "and",
+  "in",
+  "on",
+  "at",
+  "can",
+  "will",
+  "should",
+  "sell",
+  "buy",
+  "best",
+  "today",
+  "this",
+  "that",
+  "it",
+  "do",
+  "does",
+  "with",
+  "from",
+  "about",
+  "much",
+  "many",
+  "get",
 ]);
 
 const HINGLISH_WORDS = new Set([
@@ -457,6 +513,7 @@ export function detectLanguage(
 
   // 2. Count Unicode Script Ranges
   let gurmukhiCount = 0;
+  let gujaratiCount = 0;
   let devanagariCount = 0;
   let latinCount = 0;
 
@@ -464,6 +521,8 @@ export function detectLanguage(
     const code = trimmed.charCodeAt(i);
     if (code >= 0x0a00 && code <= 0x0a7f) {
       gurmukhiCount++;
+    } else if (code >= 0x0a80 && code <= 0x0aff) {
+      gujaratiCount++;
     } else if (code >= 0x0900 && code <= 0x097f) {
       devanagariCount++;
     } else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
@@ -472,6 +531,20 @@ export function detectLanguage(
   }
 
   const totalChars = gurmukhiCount + devanagariCount + latinCount;
+
+  // Gujarati script
+  if (gujaratiCount > 0 && gujaratiCount >= devanagariCount && gujaratiCount >= latinCount) {
+    return {
+      lang: "gu",
+      confidence: 0.98,
+      script: "Gujarati",
+      details: {
+        scores: { gu: gujaratiCount },
+        matchedMarkers: ["Gujarati script characters"],
+        isShortInput: trimmed.split(/\s+/).length <= 2,
+      },
+    };
+  }
 
   // Case A: Punjabi (Gurmukhi Script)
   if (gurmukhiCount > 0 && gurmukhiCount >= devanagariCount && gurmukhiCount >= latinCount) {
@@ -581,7 +654,7 @@ export function detectLanguage(
   }
 
   let hinglishScore = 0;
-  const englishScore = 0;
+  let englishScore = 0;
 
   // Check phrase patterns
   for (const regex of HINGLISH_PHRASES) {
@@ -593,6 +666,10 @@ export function detectLanguage(
 
   // Check individual tokens
   for (const word of tokens) {
+    if (ENGLISH_COMMON.has(word)) {
+      englishScore += 1;
+      continue;
+    }
     if (HINGLISH_WORDS.has(word)) {
       hinglishScore += 1.5;
       matchedMarkers.push(`hinglish:${word}`);
@@ -606,9 +683,8 @@ export function detectLanguage(
   let confidence = 0.85;
 
   if (
-    hinglishScore >= 2.5 ||
-    (tokens.length <= 4 && hinglishScore >= 1.5) ||
-    hinglishDensity >= 0.4
+    hinglishScore > englishScore &&
+    (hinglishScore >= 2.5 || (tokens.length <= 4 && hinglishScore >= 1.5) || hinglishDensity >= 0.4)
   ) {
     chosenLang = "hinglish";
     confidence = Math.min(0.98, 0.7 + hinglishScore * 0.05);
@@ -644,5 +720,6 @@ export const BOT_LANG_INFO: Record<
   hi: { name: "Hindi", native: "हिंदी", speechLocale: "hi-IN" },
   mr: { name: "Marathi", native: "मराठी", speechLocale: "mr-IN" },
   pa: { name: "Punjabi", native: "ਪੰਜਾਬੀ", speechLocale: "pa-IN" },
+  gu: { name: "Gujarati", native: "ગુજરાતી", speechLocale: "gu-IN" },
   hinglish: { name: "Hinglish", native: "Hinglish", speechLocale: "hi-IN" },
 };

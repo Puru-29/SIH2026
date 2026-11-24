@@ -5,6 +5,7 @@
  */
 
 import { Link } from "@tanstack/react-router";
+import { BuyerTrustBadge } from "@/components/agri/trust-ui";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Check, MessageSquare, Repeat, X } from "lucide-react";
@@ -312,7 +313,8 @@ export function NegotiationHistory({
               <p className="font-medium">
                 {myRole === "farmer"
                   ? (latest.buyer_name ?? `Buyer #${buyerId}`)
-                  : latest.farmer_name}
+                  : latest.farmer_name}{" "}
+                {myRole === "farmer" && <BuyerTrustBadge buyerId={buyerId} />}
               </p>
               <MessageLink
                 userId={myRole === "farmer" ? buyerId : (latest.farmer_id ?? 0)}

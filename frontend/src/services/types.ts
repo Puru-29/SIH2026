@@ -21,7 +21,7 @@ export type TickerQuote = {
 
 export type Faq = { q: string; a: string };
 
-export type SupportedBotLang = "en" | "hi" | "mr" | "pa" | "hinglish";
+export type SupportedBotLang = "en" | "hi" | "mr" | "pa" | "gu" | "hinglish";
 
 export type BotAnswer = {
   id: string;
@@ -32,5 +32,7 @@ export type BotAnswer = {
     mr: string;
     pa: string;
     hinglish: string;
+    /** Gujarati is answered by the AI; built-in answers fall back to English. */
+    gu?: string;
   };
 };

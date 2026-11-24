@@ -123,7 +123,10 @@ export function askAgriBot(
   const q = question.toLowerCase();
 
   const has = (...keys: string[]) => keys.some((k) => q.includes(k.toLowerCase()));
-  const pick = (id: string) => BOT_ANSWERS.find((a) => a.id === id)?.answer[targetLang];
+  const pick = (id: string) => {
+    const a = BOT_ANSWERS.find((x) => x.id === id)?.answer;
+    return a ? (a[targetLang] ?? a.en) : undefined;
+  };
 
   let replyText: string;
   let matchedTopic: string | undefined;

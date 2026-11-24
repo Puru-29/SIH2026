@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { BuyerTrustBadge } from "@/components/agri/trust-ui";
+import type { BuyerBadge } from "@/services/verification-api";
 import { useState, type FormEvent } from "react";
 import { BadgeCheck, Info, MapPin, Plus, Send } from "lucide-react";
 import { PortalLayout } from "@/components/agri/portal-layout";
@@ -206,7 +208,10 @@ function Buyers() {
                     <div>
                       <p className="flex items-center gap-1.5 font-serif text-xl">
                         {b.buyer_name ?? `Buyer #${b.buyer_id}`}
-                        {b.verified && <BadgeCheck className="h-4 w-4 text-primary" />}
+                        <BuyerTrustBadge
+                          badge={(b as { badge?: BuyerBadge }).badge}
+                          buyerId={b.buyer_id}
+                        />
                       </p>
                       <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5" /> {b.delivery_location} ·{" "}
@@ -295,7 +300,8 @@ function Buyers() {
               >
                 <div>
                   <p className="font-medium">
-                    {t(offer.crop_name ?? "Lot")} · LOT-{offer.lot_id} · {offer.buyer_name}
+                    {t(offer.crop_name ?? "Lot")} · LOT-{offer.lot_id} · {offer.buyer_name}{" "}
+                    <BuyerTrustBadge buyerId={offer.buyer_id} />
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {offer.created_by_role === "buyer"

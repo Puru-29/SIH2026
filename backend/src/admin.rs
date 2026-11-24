@@ -205,22 +205,6 @@ fn paged<T: Serialize>(items: Vec<T>, total: i64, page: i64, limit: i64) -> Valu
             "pages": ((total + limit - 1) / limit).max(1) })
 }
 
-/// Blocks a buyer account an admin has not verified yet from trading.
-pub async fn require_verified_buyer(pool: &SqlitePool, buyer_id: i64) -> Result<(), AppError> {
-    let verified: i64 =
-        sqlx::query_scalar("SELECT COALESCE(MAX(is_verified), 0) FROM buyers WHERE id = ?")
-            .bind(buyer_id)
-            .fetch_one(pool)
-            .await?;
-    if verified == 1 {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden(
-            "Your account is being verified — you can make offers once approved.".into(),
-        ))
-    }
-}
-
 /// Builds the stored farmer location "District, State" from sign-up or profile input.
 pub fn farmer_location(district: Option<&str>, state: Option<&str>) -> Result<String, AppError> {
     let district = district.map(str::trim).unwrap_or("");
@@ -632,6 +616,22 @@ async fn decide_buyer(
     .bind(id)
     .bind(b.approve as i64)
     .bind(if b.approve { None } else { Some(&reason) })
+    .execute(&mut *tx)
+    .await?;
+    // Keep the verification level in step: approve = at least Level 1, decline = Level 0.
+    sqlx::query(
+        "INSERT INTO buyer_verifications (buyer_id, level, status, business_name, decided_by, decided_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(buyer_id) DO UPDATE SET
+            level = CASE WHEN ? THEN MAX(level, 1) ELSE 0 END, status = excluded.status,
+            decided_by = excluded.decided_by, decided_at = CURRENT_TIMESTAMP",
+    )
+    .bind(id)
+    .bind(b.approve as i64)
+    .bind(if b.approve { "approved" } else { "rejected" })
+    .bind(&name)
+    .bind(user.user_id)
+    .bind(b.approve)
     .execute(&mut *tx)
     .await?;
     if b.approve {

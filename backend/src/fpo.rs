@@ -2441,7 +2441,12 @@ async fn buyer_create_offer(
     Json(b): Json<NewOfferBody>,
 ) -> ApiResult<Value> {
     require(&pool, &user, &["buyer"]).await?;
-    crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+    crate::verification::require_buyer_can_trade(
+        &pool,
+        user.user_id,
+        b.price_per_quintal * b.quantity_quintals,
+    )
+    .await?;
     let fpo_id: i64 = sqlx::query_scalar("SELECT fpo_id FROM fpo_lots WHERE id = ?")
         .bind(b.lot_id)
         .fetch_optional(&pool)
@@ -2466,7 +2471,9 @@ async fn buyer_respond_offer(
         .filter(|o| o.buyer_id == user.user_id)
         .ok_or_else(|| not_found("Offer not found"))?;
     if b.action != "reject" {
-        crate::admin::require_verified_buyer(&pool, user.user_id).await?;
+        let amount = b.price_per_quintal.unwrap_or(offer.price_per_quintal)
+            * b.quantity_quintals.unwrap_or(offer.quantity_quintals);
+        crate::verification::require_buyer_can_trade(&pool, user.user_id, amount).await?;
     }
     Ok(Json(respond(&pool, offer, "buyer", user.user_id, b).await?))
 }
@@ -2632,7 +2639,8 @@ async fn sale_detail(
     let shipments =
         shipments_where(&pool, "sh.fpo_id = ? AND sh.sale_id = ?", &[org.id, id]).await?;
     Ok(Json(
-        json!({ "sale": sale, "payments": payments, "payouts": payouts, "shipments": shipments }),
+        json!({ "sale": sale, "payments": payments, "payouts": payouts, "shipments": shipments,
+                "buyer_contact": crate::verification::contact(&pool, sale.buyer_id).await? }),
     ))
 }
 

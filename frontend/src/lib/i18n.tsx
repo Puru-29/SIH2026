@@ -27,10 +27,9 @@ export interface LanguageMeta {
 export const LANGUAGES: LanguageMeta[] = [
   { code: "en", native: "English", label: "English", dir: "ltr", speechLocale: "en-IN" },
   { code: "hi", native: "हिन्दी", label: "Hindi", dir: "ltr", speechLocale: "hi-IN" },
-  { code: "mr", native: "मराठी", label: "Marathi", dir: "ltr", speechLocale: "mr-IN" },
-  { code: "pa", native: "ਪੰਜਾਬੀ", label: "Punjabi", dir: "ltr", speechLocale: "pa-IN" },
-  { code: "gu", native: "ગુજરાતી", label: "Gujarati", dir: "ltr", speechLocale: "gu-IN" },
 ];
+// The app is offered in English and Hindi only. Marathi, Punjabi and Gujarati
+// translations are kept below so they can be switched back on by adding them here.
 
 export type TranslationDict = Record<string, string>;
 

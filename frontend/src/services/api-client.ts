@@ -19,7 +19,7 @@ import { clearUser, getSession, type UserRole, type UserStatus } from "./session
 // Vite replaces import.meta.env.VITE_* at build time.
 // For local dev the proxy in vite.config.ts forwards /api → :8080, so we
 // just use an empty string (same-origin relative URL).
-const BASE_URL: string = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
+export const BASE_URL: string = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
 
 // ── Error type ───────────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -685,7 +685,8 @@ export interface NetRealisation {
 export interface OrderDetail {
   order: BackendTransaction;
   my_role: "farmer" | "buyer" | "admin";
-  counterpart: { id: number; name: string; role: "farmer" | "buyer" };
+  /** The other party, with real phone — only for the two parties of the deal. */
+  counterpart: import("./verification-api").Contact;
   events: OrderEvent[];
   steps: OrderStep[];
   current_step: OrderStep;
@@ -880,6 +881,7 @@ export interface MyProfile {
   trust_score: number | null;
   /** Farmer saved before district was asked at sign-up: prompt once to confirm it. */
   needs_district?: boolean;
+  phone_verified?: boolean;
   stats: {
     lots: number;
     open_lots: number;

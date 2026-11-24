@@ -163,6 +163,7 @@ export const BOT_ANSWERS: BotAnswer[] = [
 ];
 
 export const BOT_GREETING: Record<SupportedBotLang, string> = {
+  gu: "નમસ્તે! હું તમારો AgriSense AI સહાયક છું. મંડી ભાવ, પાક વેચવાનો યોગ્ય સમય, સ્ટોરેજ, ચુકવણી અથવા એપ વિશે ગુજરાતીમાં કંઈ પણ પૂછો.",
   en: "Hello! I am your AgriConnect AI advisor. Ask me anything in English, Hindi, Marathi, Punjabi, or Hinglish about mandi rates, selling windows, storage, or payments.",
   hi: "नमस्ते! मैं आपका AgriConnect AI सलाहकार हूँ। महाराष्ट्र एवं आसपास की मंडियों के भाव, फसल बेचने का सही समय, कोल्ड स्टोरेज या पेमेंट के बारे में किसी भी भाषा में पूछें।",
   mr: "नमस्कार! मी तुमचा AgriConnect AI सहाय्यक आहे. बाजारभाव, विक्रीची योग्य वेळ, वाहतूक, शीतगृह किंवा पेमेंटबाबत मराठी, हिंदी किंवा इंग्रजीत प्रश्न विचारा.",
@@ -172,6 +173,7 @@ export const BOT_GREETING: Record<SupportedBotLang, string> = {
 };
 
 export const BOT_FALLBACK: Record<SupportedBotLang, string> = {
+  gu: "મને તમારો પ્રશ્ન સમજાયો. તમે ડુંગળી, ટામેટા, સોયાબીનના ભાવ, વેચવાનો યોગ્ય સમય, કોલ્ડ સ્ટોરેજ અથવા ચુકવણી વિશે પૂછી શકો છો.",
   en: "I understand your query. You can ask about live onion, tomato or soybean prices, best time to sell, cold storage costs, AI grading norms, or digital escrow payments.",
   hi: "मैं आपकी बात समझ गया। आप प्याज, टमाटर या सोयाबीन के लाइव मंडी भाव, बेचने का सही समय, कोल्ड स्टोरेज का खर्च, AI ग्रेडिंग या एस्क्रो पेमेंट के बारे में पूछ सकते हैं।",
   mr: "मला तुमचा प्रश्न समजला. तुम्ही कांदा, टोमॅटो किंवा सोयाबीनचे थेट बाजारभाव, विक्रीची योग्य वेळ, शीतगृह खर्च, AI ग्रेडिंग किंवा पेमेंटबाबत विचारू शकता.",

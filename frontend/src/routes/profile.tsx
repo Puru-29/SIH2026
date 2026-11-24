@@ -14,6 +14,7 @@ import type { UrgencyLevel } from "@/services/api-client";
 import { INDIAN_STATES } from "@/lib/states";
 import { useQuery } from "@tanstack/react-query";
 import { FarmerReviewsBody } from "@/components/agri/quality-ui";
+import { PhoneVerifyCard } from "@/components/agri/trust-ui";
 import { getFarmerReviews } from "@/services/api-client";
 
 export const Route = createFileRoute("/profile")({
@@ -124,6 +125,9 @@ function ProfilePage() {
         }
       />
 
+      <Panel>
+        <PhoneVerifyCard verified={Boolean(profile.data?.phone_verified)} />
+      </Panel>
       {!isBuyer && <MyFpoCard />}
       {!isBuyer && profile.data && <MyReviews farmerId={profile.data.id} />}
 

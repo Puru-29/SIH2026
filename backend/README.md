@@ -15,8 +15,8 @@ src/
 │   └── fpo_pools.rs   #   sales, payouts, logistics, grievances; pools, joins, announcements
 ├── admin.rs           # admin console, disputes, audit log, notify helpers
 ├── db.rs, models.rs   # shared queries and request/response types
-├── seed.rs            # master data, admin from env, sample accounts
-├── seed_demo.rs       # idempotent sample data for every portal
+├── seed.rs            # master data, admin from env, starter accounts
+├── seed_demo.rs       # idempotent starter data for every portal
 ├── migrate_fix.rs     # tolerate CRLF/LF changes in migration files
 └── services/
     ├── mandi.rs       # Mandi API client (prices cached 15 min, lists 6 h, history)
@@ -39,7 +39,7 @@ Copy `.env.example` to `.env`. Every variable the backend reads:
 | `PORT` | `8080` | API port (the frontend dev proxy expects `3001`) |
 | `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin |
 | `ADMIN_PHONE`, `ADMIN_PIN` | none | Creates or updates the admin account; no admin exists without them |
-| `DEMO_PIN` | `1234` | PIN for seeded sample accounts that have none |
+| `SEED_PIN` | `1234` | PIN for seeded starter accounts that have none (`DEMO_PIN` also accepted) |
 | `MANDI_API_BASE_URL` | `https://mandi-api.onrender.com/v1` | Mandi price API (no key) |
 | `MANDI_API_STATE` | `Maharashtra` | Default state for price requests without one |
 | `PLATFORM_FEE_PERCENT` | `0` | Fee on direct deals, shown in net realisation |
@@ -169,6 +169,48 @@ New lots need 1–3 photos taken with the in-app camera (the app has no gallery 
 | GET | `/api/transactions/:id/quality` | buyer, farmer, admin | This order's grade check and review |
 | GET | `/api/farmers/:id/reviews` | any | Rating, grade record and latest reviews |
 
+### Buyer verification and contacts
+
+| Level | Badge | Unlocks | Needed |
+|---|---|---|---|
+| 0 | Unverified | Browse, post requirements | Account |
+| 1 | ID Verified | Offers up to `BASIC_BUYER_ORDER_LIMIT` (₹2,00,000) per order | Phone OTP + one ID proof + business/shop name, address, crops bought, monthly capacity |
+| 2 | Verified Business | No limit | Level 1 + business proof + bank details and proof + a live shop/warehouse photo |
+| — | Trusted Buyer (automatic) | Shown first | Level 2 + ≥ 5 completed deals + no payment reported "not received" in 90 days + trust score ≥ 4 + no seller dispute resolved against them in 90 days. Calculated live, so it goes away as soon as a rule fails |
+
+Limits are enforced in the backend on every offer, counter and accept (farmer lots and FPO lots).
+
+| Business type | ID proof (one) | Business proof (Level 2) |
+|---|---|---|
+| Individual trader / commission agent | PAN, Voter ID, Driving licence, Passport or masked Aadhaar | APMC trader licence, Udyam, or 3-month bank statement |
+| Proprietorship | Same (owner) | GST certificate, Udyam, Shop & Establishment, APMC or FSSAI licence |
+| Partnership / LLP | A partner's ID | Deed or LLP certificate + firm PAN |
+| Company | Signatory's ID + authorisation letter | Incorporation certificate + company PAN |
+
+GSTIN and Aadhaar are never compulsory. GSTIN (checksum), PAN, IFSC and PIN are validated. Only masked Aadhaar is accepted (the buyer confirms it; a rejected Aadhaar is deleted at once). Files (PDF/JPG/PNG/WEBP ≤ 2 MB, type read from the bytes) and bank account numbers are encrypted with AES-256-GCM (`DOC_ENCRYPTION_KEY`); accounts are shown as `XXXXXX1234`. Only the owner and admins can open documents (`Cache-Control: no-store`; every admin view is audited). Rejected documents are deleted after 30 days; buyers can delete their documents any time.
+
+Phone numbers are shown only to the two parties of an accepted deal (and admins), never on lot, offer or supplier lists.
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `/api/me/phone/otp/send`, `/api/me/phone/otp/verify` | any | OTP to your own number: 5-minute expiry, 5 tries, 1 send per 30 s. `OTP_MODE=fixed` → code `OTP_FIXED_CODE` (123456), no SMS |
+| GET, PUT | `/api/me/verification` | buyer | My application, level, what's missing / save details |
+| POST, DELETE | `/api/me/verification/documents` | buyer | Upload one document / delete all my documents |
+| GET | `/api/me/verification/documents/:id` | owner | Open my document |
+| POST | `/api/me/verification/submit` | buyer | Send for review (`consent: true` required) |
+| GET | `/api/buyers/:id/badge` | any | Badge only (level, trusted, label) |
+| GET | `/api/transactions/:id/contact` | the two parties, admin | Other party's name, phone, business, badges (also in `GET /api/transactions/:id` as `counterpart`) |
+| GET | `/api/fpo-market/offers/:id/contact` | that buyer, admin | FPO manager's contact once the offer is accepted (FPOs see `buyer_contact` in the sale detail) |
+| GET | `/api/admin/buyer-verifications`, `/:id` | admin | Queue and detail |
+| POST | `/api/admin/buyer-verifications/:id/grant`, `/:id/reject` | admin | Grant Level 1/2 (needs approved documents) or send back; audited, buyer notified |
+| GET / POST | `/api/admin/buyer-documents/:id`, `/:id/approve\|reject` | admin | Open (audited) / review a document (reason required to reject) |
+
+New `.env`: `DOC_ENCRYPTION_KEY`, `BASIC_BUYER_ORDER_LIMIT`, `OTP_MODE`, `OTP_FIXED_CODE` (see `.env.example`). Seeded buyers (PIN 1234): `9123450001` Level 1, `9123450002` Level 2, `9123450003` pending.
+
+### AgriBot AI
+
+`POST /api/agribot/ask` `{ question, reply_lang?, history? }` (any signed-in user) answers with **Google Gemini** (free tier; `GEMINI_API_KEY`, model `GEMINI_MODEL`, default `gemini-3.5-flash-lite`, minimal thinking) or, if only `ANTHROPIC_API_KEY` is set (or `AGRIBOT_PROVIDER=claude`), **Claude** (`AGRIBOT_MODEL`, default `claude-haiku-5-5`, low effort). The system prompt holds a guide to AgriSense plus a short summary of **only the caller's own** lots, offers, orders, payments and FPO; phone numbers are never included. Replies come in the chosen language (English, Hindi, Marathi, Punjabi, Gujarati, Hinglish). Each question is logged in `agribot_log` (tokens) and limited per user per hour (`AGRIBOT_HOURLY_LIMIT`, default 30). Without either key it returns 503 and the app uses AgriBot's built-in answers.
+
 ### Messages and notifications
 
 | Method | Path | Role | Purpose |
@@ -223,10 +265,10 @@ Buyer side: `GET /api/fpo-market/lots`, `GET, POST /api/fpo-market/offers`, `POS
 
 Lists in the admin API are paginated: `{ items, total, page, limit, pages }`.
 
-## Database and sample data
+## Database and starter data
 
 - Migrations in `migrations/` run on start. **Never edit an applied migration**; see [docs/database/migrations.md](../docs/database/migrations.md).
-- `seed.rs` loads master data, the admin (from env) and sample accounts. `seed_demo.rs` adds sample data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
+- `seed.rs` loads master data, the admin (from env) and starter accounts. `seed_demo.rs` adds starter data for every portal (buyer requirements, the Punjab Kisan FPO with members, pools, a settled sale and payouts, a pending FPO and buyer, a delivered farmer order with a payment waiting for confirmation, a message thread, a dispute and audit entries). Both only add what is missing, so restarting never duplicates or overwrites data.
 - Delete the database file to start over.
 
 ## Tests

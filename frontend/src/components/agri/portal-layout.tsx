@@ -15,6 +15,7 @@ import {
   Package,
   Receipt,
   Search,
+  ShieldCheck,
   Snowflake,
   Sprout,
   Store,
@@ -59,6 +60,7 @@ const BUYER_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/browse-produce", label: "Browse Produce", icon: Search },
   { to: "/requirements", label: "My Requirements", icon: ClipboardList },
+  { to: "/verification", label: "Verification", icon: ShieldCheck },
   { to: "/suppliers", label: "Suppliers", icon: Users },
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },
@@ -71,8 +73,11 @@ const BUYER_NAV = [
 export function PortalLayout({
   children,
   roles = ["farmer", "buyer"],
+  wide = false,
 }: {
   children: ReactNode;
+  /** Full-width content (e.g. AgriBot's three columns). */
+  wide?: boolean;
   /** Roles allowed on this page; others are sent to their own home page. */
   roles?: UserRole[];
 }) {
@@ -138,6 +143,16 @@ export function PortalLayout({
               >
                 <item.icon className="h-4 w-4" />
                 {t(item.label)}
+                {item.to === "/agribot" ? (
+                  <span
+                    className={cn(
+                      "ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                      active ? "bg-primary-foreground/20" : "bg-primary/10 text-primary",
+                    )}
+                  >
+                    AI
+                  </span>
+                ) : null}
                 {item.to === "/notifications" && unread > 0 ? (
                   <span
                     className={cn(
@@ -214,11 +229,21 @@ export function PortalLayout({
             <strong>{t("Your account is being verified")}</strong> —{" "}
             {t(
               "you can make offers once approved. Meanwhile you can browse produce and post requirements.",
-            )}
+            )}{" "}
+            <Link to="/verification" className="font-medium underline">
+              {t("Complete verification")}
+            </Link>
           </div>
         ) : null}
 
-        <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">{children}</main>
+        <main
+          className={cn(
+            "mx-auto space-y-8 px-4 md:px-8",
+            wide ? "max-w-[100rem] py-5" : "max-w-6xl py-8",
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

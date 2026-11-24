@@ -12,7 +12,7 @@ warning. Any other change still fails.
 
 ## Historical migrations that delete data
 
-These ran early in the prototype to clear out placeholder data. They are kept only so
+These ran early in development to clear out placeholder data. They are kept only so
 existing databases stay valid:
 
 | Migration | What it does |
@@ -20,7 +20,7 @@ existing databases stay valid:
 | `20260915020000_remove_seeded_buyer_requirements.sql` | Deletes the placeholder buyer requirements created by `20260915000000_add_buyer_offers.sql`. |
 | `20260915050000_reset_offer_settlement_data.sql` | Deletes all offers and transactions and reopens sold lots. |
 
-Sample data does **not** come from migrations. It is created by `src/seed.rs`, which runs
+Starter data does **not** come from migrations. It is created by `src/seed.rs`, which runs
 after migrations on every start and only inserts what is missing, so a fresh database
-always ends up with sample data for every portal and an existing one is never changed.
+always ends up with starter data for every portal and an existing one is never changed.
 New migrations must not delete user data.

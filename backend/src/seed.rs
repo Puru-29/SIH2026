@@ -2,7 +2,7 @@ use sqlx::SqlitePool;
 
 use crate::auth::{hash_pin, verify_pin};
 
-/// PIN for seeded sample accounts (documented in the README). Override with DEMO_PIN.
+/// PIN for seeded sample accounts (documented in the README). Override with SEED_PIN.
 const DEFAULT_DEMO_PIN: &str = "1234";
 
 /// Creates or updates the platform admin from ADMIN_PHONE / ADMIN_PIN.
@@ -56,7 +56,8 @@ pub async fn ensure_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 /// Gives the seeded farmer, buyer and FPO accounts a PIN and verifies the sample FPO.
 /// Only touches seeded accounts that have no PIN yet, so it is safe on every start.
 pub async fn ensure_demo_accounts(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    let pin = std::env::var("DEMO_PIN")
+    let pin = std::env::var("SEED_PIN")
+        .or_else(|_| std::env::var("DEMO_PIN"))
         .ok()
         .filter(|p| p.len() == 4 && p.chars().all(|c| c.is_ascii_digit()))
         .unwrap_or_else(|| DEFAULT_DEMO_PIN.to_string());

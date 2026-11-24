@@ -84,15 +84,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AgriConnect — Market Intelligence for Farmers (SIH 26132)" },
+      { title: "AgriConnect — Market Intelligence for Farmers" },
       {
         name: "description",
         content:
-          "AgriConnect (SIH 26132) turns mandi prices, buyer demand and transport costs into one clear decision: sell now, hold or split.",
+          "AgriConnect turns mandi prices, buyer demand and transport costs into one clear decision: sell now, hold or split.",
       },
       {
         property: "og:title",
-        content: "AgriConnect — Market Intelligence for Farmers (SIH 26132)",
+        content: "AgriConnect — Market Intelligence for Farmers",
       },
       {
         property: "og:description",
@@ -108,7 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         /*
-         * Typography system — AgriConnect (SIH 26132)
+         * Typography system — AgriConnect
          *
          * Lora            → heading serif  (formal government-portal feel)
          * Public Sans     → body sans-serif (readable, government-grade)

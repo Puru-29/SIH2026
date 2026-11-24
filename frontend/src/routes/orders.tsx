@@ -21,6 +21,7 @@ import { cropEmoji } from "@/lib/crop-catalog";
 import { getSession } from "@/services/session";
 import { OrderDispute } from "@/components/agri/order-dispute";
 import { OrderQualityPanel } from "@/components/agri/quality-ui";
+import { BuyerTrustBadge, ContactCard } from "@/components/agri/trust-ui";
 import { useOrderDetail, useTransactions, type BackendTransaction } from "@/hooks/use-transactions";
 import { MessageLink, OrderStatusPill, PaymentStatusPill } from "@/components/agri/deal-ui";
 import { ORDER_LABEL } from "@/lib/deal-format";
@@ -290,7 +291,8 @@ function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t("Order")} #{tx.id} · LOT-{tx.lot_id} ·{" "}
-            {myRole === "farmer" ? t("Buyer") : t("Farmer")}: {counterparty}
+            {myRole === "farmer" ? t("Buyer") : t("Farmer")}: {counterparty}{" "}
+            {myRole === "farmer" && <BuyerTrustBadge buyerId={tx.buyer_id} />}
           </p>
 
           <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
@@ -358,6 +360,7 @@ function OrderRow({ tx, myRole }: { tx: BackendTransaction; myRole: "farmer" | "
                 <Loading />
               ) : detail.data ? (
                 <>
+                  <ContactCard contact={detail.data.counterpart} />
                   <OrderTimeline detail={detail.data} />
                   <OrderPayments detail={detail.data} />
                 </>
