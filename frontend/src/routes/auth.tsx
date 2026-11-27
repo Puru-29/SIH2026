@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { BrandLogo } from "@/components/agri/brand-logo";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, ShieldCheck, Sprout, Store, Wheat } from "lucide-react";
@@ -64,9 +65,7 @@ function AuthPage() {
     >
       <div className="w-full max-w-lg">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Sprout className="h-4 w-4" />
-          </span>
+          <BrandLogo size={48} />
           <span className="font-serif text-xl">AgriSense</span>
         </Link>
 

@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { BrandLogo } from "@/components/agri/brand-logo";
 import { useState } from "react";
 import {
   BadgeCheck,
@@ -10,7 +11,6 @@ import {
   Megaphone,
   Menu,
   Scale,
-  ShieldCheck,
   Store,
   Users,
   X,
@@ -70,9 +70,7 @@ export function AdminLayout() {
         aria-label={t("Admin console")}
       >
         <div className="flex items-center gap-3 px-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[oklch(0.72_0.1_170)] text-[oklch(0.2_0.03_180)]">
-            <ShieldCheck className="h-5 w-5" />
-          </span>
+          <BrandLogo size={40} />
           <div>
             <p className="font-serif text-lg leading-tight text-white">AgriSense Admin</p>
             <p className="text-xs text-white/60">{session.name}</p>

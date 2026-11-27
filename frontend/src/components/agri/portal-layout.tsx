@@ -1,9 +1,9 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { BrandLogo } from "@/components/agri/brand-logo";
 import { useState, type ReactNode } from "react";
 import {
   Bell,
   Bot,
-  Boxes,
   Brain,
   ClipboardList,
   Building2,
@@ -105,9 +105,7 @@ export function PortalLayout({
       >
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Boxes className="h-4 w-4" />
-            </span>
+            <BrandLogo size={40} />
             <span
               className={cn(
                 "font-serif text-lg font-semibold tracking-tight",

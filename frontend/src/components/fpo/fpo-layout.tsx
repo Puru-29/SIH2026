@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { BrandLogo } from "@/components/agri/brand-logo";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -143,9 +144,7 @@ export function FpoLayout() {
         <div
           className={cn("flex items-center gap-3 px-2", collapsed && "lg:justify-center lg:px-0")}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--fpo-gold)] text-[var(--fpo-gold-ink)]">
-            <Wheat className="h-5 w-5" />
-          </span>
+          <BrandLogo size={44} />
           <div className={cn("min-w-0", collapsed && "lg:hidden")}>
             <p className="font-serif text-lg leading-tight text-white">AgriSense FPO</p>
             <p className="truncate text-xs text-white/70">
