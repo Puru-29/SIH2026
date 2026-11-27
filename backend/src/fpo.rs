@@ -442,8 +442,8 @@ async fn update_org(
         .map(|v| text(v, "Registration number", 0, 60))
         .transpose()?
         .filter(|v| !v.is_empty());
-    let district = text(&b.district, "District", 0, 80)?;
-    let state = text(&b.state, "State", 2, 80)?;
+    let (state, district) = crate::admin::served_place(Some(&b.district), Some(&b.state))?;
+    let (state, district) = (state.to_string(), district.to_string());
     let contact = match b.contact_phone.as_deref().map(str::trim) {
         Some(v) if !v.is_empty() => Some(phone(v)?),
         _ => None,

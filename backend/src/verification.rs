@@ -817,6 +817,8 @@ async fn save_details(
         return Err(bad("Choose your business type"));
     }
     let name = text(&b.business_name, "Business or shop name", 2, 120)?;
+    let (served_state, served_district) =
+        crate::admin::served_place(b.district.as_deref(), b.state.as_deref())?;
     let address = text(&b.address, "Address", 5, 300)?;
     let crops = text(&b.crops_bought, "Crops you buy", 2, 300)?;
     let pincode = b.pincode.trim().to_string();
@@ -894,8 +896,8 @@ async fn save_details(
     .bind(&b.business_type)
     .bind(&name)
     .bind(&address)
-    .bind(b.district.as_deref().unwrap_or("").trim())
-    .bind(b.state.as_deref().unwrap_or("").trim())
+    .bind(served_district)
+    .bind(served_state)
     .bind(&pincode)
     .bind(&crops)
     .bind(b.monthly_capacity_quintals)
@@ -1497,7 +1499,7 @@ pub async fn ensure_samples(pool: &SqlitePool) -> Result<(), AppError> {
         .bind(crate::auth::hash_pin("1234"))
         .fetch_one(&mut *tx)
         .await?;
-        sqlx::query("INSERT INTO buyers (id, trust_score, is_verified, location) VALUES (?, 4.5, ?, 'Delhi')")
+        sqlx::query("INSERT INTO buyers (id, trust_score, is_verified, location) VALUES (?, 4.5, ?, 'Pune, Maharashtra')")
             .bind(uid)
             .bind((level >= 1) as i64)
             .execute(&mut *tx)
@@ -1506,7 +1508,7 @@ pub async fn ensure_samples(pool: &SqlitePool) -> Result<(), AppError> {
             "INSERT INTO buyer_verifications (buyer_id, level, status, business_type, business_name, address,
                 district, state, pincode, crops_bought, monthly_capacity_quintals, pan, bank_holder_name,
                 bank_ifsc, bank_account_last4, consent_at, submitted_at, is_sample)
-             VALUES (?, ?, ?, ?, ?, 'Shop 12, Azadpur Mandi', 'North West Delhi', 'Delhi', '110033',
+             VALUES (?, ?, ?, ?, ?, 'Shop 12, Gultekdi Market Yard', 'Pune', 'Maharashtra', '411037',
                 'Onion, Potato, Tomato', 500, 'ABCDE1234F', ?, 'SBIN0001234', '1234',
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)",
         )

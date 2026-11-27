@@ -3,7 +3,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, ShieldCheck, Sprout, Store, Wheat } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LocationSelector } from "@/components/agri/location-selector";
 import { LanguageSelector } from "@/components/agri/language-selector";
 import { useI18n } from "@/lib/i18n";
 import { homeFor, setSession, type UserRole } from "@/services/session";
@@ -153,12 +152,6 @@ function AuthPage() {
                 className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
               />
             </div>
-            {role === "farmer" && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">{t("Farm location")}</span>
-                <LocationSelector compact />
-              </div>
-            )}
             <button
               type="submit"
               disabled={busy !== null}

@@ -3,7 +3,7 @@ import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useMyProfile, useUpdateProfile } from "@/hooks/use-market";
 import { useI18n } from "@/lib/i18n";
-import { INDIAN_STATES } from "@/lib/states";
+import { PlaceFields } from "@/components/agri/place-fields";
 import { Panel } from "@/components/agri/ui-bits";
 
 const inputCls =
@@ -21,7 +21,6 @@ export function ConfirmDistrict() {
   const [state, setState] = useState("");
 
   if (!profile.data?.needs_district) return null;
-  const known = profile.data.state ?? "";
 
   return (
     <Panel>
@@ -30,7 +29,7 @@ export function ConfirmDistrict() {
         onSubmit={(e) => {
           e.preventDefault();
           save.mutate(
-            { district: district.trim(), state: state || known },
+            { district, state },
             {
               onSuccess: () => toast.success(t("District saved")),
               onError: (err) => toast.error(err.message),
@@ -44,43 +43,21 @@ export function ConfirmDistrict() {
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {t(
-              "We use it to find FPOs near you, show local mandi prices and work out pickup and freight.",
+              "AgriSense works in the districts that have mandi price data. Choose yours to see local prices, nearby FPOs, pickup and freight.",
             )}
           </p>
         </div>
-        <div>
-          <label className="text-sm text-muted-foreground" htmlFor="cd-district">
-            {t("District")}
-          </label>
-          <input
-            id="cd-district"
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-            required
-            minLength={2}
-            maxLength={60}
-            placeholder="Ludhiana"
-            className={inputCls}
+        <div className="sm:col-span-2">
+          <PlaceFields
+            idPrefix="cd"
+            state={state}
+            district={district}
+            onChange={(p) => {
+              setState(p.state);
+              setDistrict(p.district);
+            }}
+            selectClassName={inputCls}
           />
-        </div>
-        <div>
-          <label className="text-sm text-muted-foreground" htmlFor="cd-state">
-            {t("State")}
-          </label>
-          <select
-            id="cd-state"
-            value={state || known}
-            onChange={(e) => setState(e.target.value)}
-            required
-            className={inputCls}
-          >
-            <option value="">{t("Choose state")}</option>
-            {INDIAN_STATES.map((s) => (
-              <option key={s} value={s}>
-                {t(s)}
-              </option>
-            ))}
-          </select>
         </div>
         <button
           type="submit"

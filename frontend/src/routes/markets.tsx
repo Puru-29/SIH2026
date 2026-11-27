@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { PortalLayout } from "@/components/agri/portal-layout";
 import { Metric, PageHeader, Panel, Pill } from "@/components/agri/ui-bits";
 import { useFarmLocation } from "@/lib/location-context";
@@ -70,7 +71,26 @@ function Markets() {
     (buyerPage - 1) * buyersPerPage,
     buyerPage * buyersPerPage,
   );
-  const { isLoading, isError, refetch } = pricesQuery;
+  const { isLoading, isError, refetch, isFetching, dataUpdatedAt } = pricesQuery;
+  // Newest arrival date in the government feed (it usually changes once a day).
+  const latestDate = useMemo(
+    () => livePrices.reduce((d, p) => (p.date > d ? p.date : d), ""),
+    [livePrices],
+  );
+  const refresh = async () => {
+    const r = await refetch();
+    if (r.isError) {
+      toast.error(t("Could not refresh prices"), {
+        description: r.error instanceof Error ? r.error.message : undefined,
+      });
+      return;
+    }
+    const n = r.data?.length ?? 0;
+    const newest = (r.data ?? []).reduce((d, p) => (p.date > d ? p.date : d), "");
+    toast.success(t("Prices refreshed"), {
+      description: `${n} ${t("prices")}${newest ? ` · ${t("latest government data")}: ${newest}` : ""}`,
+    });
+  };
   const availableCrops = useMemo(
     () => Array.from(new Set(livePrices.map((price) => price.crop_name))).sort(),
     [livePrices],
@@ -145,14 +165,27 @@ function Markets() {
       {/* Live price feed from backend */}
       <Panel>
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-2xl">{t("Live Mandi Prices")}</h2>
+          <div>
+            <h2 className="font-serif text-2xl">{t("Live Mandi Prices")}</h2>
+            {dataUpdatedAt > 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("Checked at")}{" "}
+                {new Date(dataUpdatedAt).toLocaleTimeString("en-IN", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+                {latestDate ? ` · ${t("latest government data")}: ${latestDate}` : ""}
+              </p>
+            )}
+          </div>
           <button
-            onClick={() => refetch()}
-            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary"
-            title="Refresh prices"
+            onClick={() => void refresh()}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-60"
+            title={t("Refresh prices")}
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-            {isLoading ? t("Refreshing…") : t("Refresh")}
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            {isFetching ? t("Refreshing…") : t("Refresh")}
           </button>
         </div>
 

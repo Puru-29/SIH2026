@@ -39,8 +39,27 @@ export function Pill({
   );
 }
 
-export function StatusTag({ status }: { status: LotStatus }) {
+export function StatusTag({ status, onDark = false }: { status: LotStatus; onDark?: boolean }) {
   const { t } = useI18n();
+  if (onDark) {
+    // Solid, high-contrast colours for dark (primary) cards.
+    const dark =
+      status === "SELL NOW"
+        ? "bg-primary-foreground text-primary"
+        : status === "HOLD"
+          ? "bg-amber-300 text-amber-950"
+          : "bg-sky-200 text-sky-950";
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide",
+          dark,
+        )}
+      >
+        {t(status)}
+      </span>
+    );
+  }
   const tone = status === "SELL NOW" ? "solid" : status === "HOLD" ? "amber" : "slate";
   return (
     <Pill tone={tone} className="font-semibold tracking-wide">

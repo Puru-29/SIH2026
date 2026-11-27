@@ -11,7 +11,7 @@ import { useMyProfile, useUpdateProfile } from "@/hooks/use-market";
 import { ErrorNote, Input, Loading, Select, shortDate } from "@/components/fpo/fpo-ui";
 import { inrAmount } from "@/lib/deal-format";
 import type { UrgencyLevel } from "@/services/api-client";
-import { INDIAN_STATES } from "@/lib/states";
+import { PlaceFields } from "@/components/agri/place-fields";
 import { useQuery } from "@tanstack/react-query";
 import { FarmerReviewsBody } from "@/components/agri/quality-ui";
 import { PhoneVerifyCard } from "@/components/agri/trust-ui";
@@ -47,7 +47,6 @@ function ProfilePage() {
   const profile = useMyProfile();
   const save = useUpdateProfile();
   const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
   const [district, setDistrict] = useState("");
   const [state, setState] = useState("");
   const [urgency, setUrgency] = useState<UrgencyLevel>("medium");
@@ -58,7 +57,6 @@ function ProfilePage() {
     const p = profile.data;
     if (!p) return;
     setName(p.name);
-    setLocation(p.location ?? "");
     // Farmers are stored as "District, State".
     const first = (p.location ?? "").split(",")[0]?.trim() ?? "";
     setDistrict(p.needs_district || first === p.state ? "" : first);
@@ -72,11 +70,8 @@ function ProfilePage() {
     save.mutate(
       {
         name: name.trim(),
-        ...(isBuyer
-          ? location.trim()
-            ? { location: location.trim() }
-            : {}
-          : { district: district.trim(), state }),
+        // Farmers and buyers: a served district and state.
+        ...(district && state ? { district, state } : {}),
         ...(isBuyer ? {} : { urgency_level: urgency }),
         preferred_language: language,
       },
@@ -174,47 +169,15 @@ function ProfilePage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
-                {isBuyer ? (
-                  <Input
-                    label="Delivery location"
-                    maxLength={100}
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder={t("For example: Azadpur, Delhi")}
-                    hint={
-                      p.state
-                        ? `${t("Prices and freight use")} ${p.state}.`
-                        : t("Add your city and state so we can work out freight.")
-                    }
-                  />
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Input
-                      label="District"
-                      required
-                      minLength={2}
-                      maxLength={60}
-                      value={district}
-                      onChange={(e) => setDistrict(e.target.value)}
-                      placeholder="Ludhiana"
-                      hint="Used to find FPOs near you, pickup and freight."
-                    />
-                    <Select
-                      label="State"
-                      required
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      hint="Mandi prices are shown for this state."
-                    >
-                      <option value="">{t("Choose state")}</option>
-                      {INDIAN_STATES.map((s) => (
-                        <option key={s} value={s}>
-                          {t(s)}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                )}
+                <PlaceFields
+                  idPrefix="profile"
+                  state={state}
+                  district={district}
+                  onChange={(next) => {
+                    setState(next.state);
+                    setDistrict(next.district);
+                  }}
+                />
                 {!isBuyer && (
                   <Select
                     label="How soon do you need to sell?"

@@ -486,7 +486,7 @@ function HeroDecision({ lot, buyerIndex }: { lot: Lot; buyerIndex: number }) {
                 : t("No buyer requirement matches this lot yet.")}
           </p>
         </div>
-        {decision && <StatusTag status={decision} />}
+        {decision && <StatusTag status={decision} onDark />}
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {(

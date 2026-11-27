@@ -28,10 +28,15 @@ pub async fn register_farmer(
         ));
     }
     // Farmers must say where they farm: it drives FPO search, freight and mandi prices.
-    let farmer_location = if role == "farmer" {
-        Some(crate::admin::farmer_location(fpo.district, fpo.state)?)
-    } else {
-        None
+    // Everyone signs up in a served place: farmers and buyers store it as "District, State",
+    // FPOs as their organisation's district and state.
+    let (served_state, served_district) = crate::admin::served_place(fpo.district, fpo.state)?;
+    let place = format!("{served_district}, {served_state}");
+    let farmer_location = (role == "farmer").then(|| place.clone());
+    let fpo = FpoSignup {
+        district: Some(served_district),
+        state: Some(served_state),
+        ..fpo
     };
     // FPOs wait for admin verification before they can use the portal.
     let status = if role == "fpo" { "pending" } else { "active" };
@@ -66,10 +71,13 @@ pub async fn register_farmer(
         crate::fpo::create_org_for_manager(&mut *tx, user.id, &user.name, &user.phone_number, &fpo)
             .await?;
     } else {
-        sqlx::query("INSERT INTO buyers (id, trust_score, is_verified) VALUES (?, 5.0, 0)")
-            .bind(user.id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "INSERT INTO buyers (id, trust_score, is_verified, location) VALUES (?, 5.0, 0, ?)",
+        )
+        .bind(user.id)
+        .bind(&place)
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(user)

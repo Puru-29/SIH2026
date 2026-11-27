@@ -157,7 +157,8 @@ export const registerFarmer = (
 ): Promise<AuthResponse> =>
   request<AuthResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, phone, pin, role, ...(role === "buyer" ? {} : fpo) }),
+    // Everyone signs up in a served state and district.
+    body: JSON.stringify({ name, phone, pin, role, ...fpo }),
   });
 
 /** The signed-in user with role and status from the server. */

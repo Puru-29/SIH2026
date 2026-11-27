@@ -30,6 +30,7 @@ pub fn routes() -> Router<SqlitePool> {
     Router::new()
         .route("/api/agribot/ask", post(ask))
         .route("/api/agribot/messages", post(save_builtin))
+        .route("/api/agribot/tts", post(tts))
         .route("/api/agribot/conversations", get(list_conversations))
         .route(
             "/api/agribot/conversations/:id",
@@ -915,6 +916,114 @@ async fn save_builtin(
     )
     .await?;
     Ok(Json(json!({ "conversation_id": id })))
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         read aloud (text to speech)                        */
+/* -------------------------------------------------------------------------- */
+
+/// Free-tier Gemini speech model (speaks Hindi and English). Override with GEMINI_TTS_MODEL.
+const DEFAULT_TTS_MODEL: &str = "gemini-3.8-flash-lite-tts";
+const MAX_TTS_CHARS: usize = 1500;
+
+#[derive(Deserialize)]
+struct TtsBody {
+    text: String,
+}
+
+/// POST /api/agribot/tts `{ text }` → `{ mime_type, data }` (base64 WAV).
+/// Used when the browser has no voice for the reply's language (e.g. Hindi in Brave).
+async fn tts(
+    State(pool): State<SqlitePool>,
+    user: AuthUser,
+    Json(b): Json<TtsBody>,
+) -> Result<Json<Value>, AppError> {
+    let Some(key) = env_key("GEMINI_API_KEY") else {
+        return Err(unavailable(
+            "Read aloud in Hindi needs GEMINI_API_KEY on the server.",
+        ));
+    };
+    // Plain text only: no Markdown symbols read out loud.
+    let text: String = b
+        .text
+        .replace(['*', '#', '_', '`'], "")
+        .trim()
+        .chars()
+        .take(MAX_TTS_CHARS)
+        .collect();
+    if text.is_empty() {
+        return Err(AppError::BadRequest("Nothing to read".into()));
+    }
+    let used: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM agribot_log WHERE user_id = ? AND model LIKE '%tts%'
+           AND created_at > datetime('now', '-1 hour')",
+    )
+    .bind(user.user_id)
+    .fetch_one(&pool)
+    .await?;
+    if used >= hourly_limit() * 2 {
+        return Err(AppError::TooManyRequests(
+            "Read aloud limit reached for this hour. Please try again later.".into(),
+        ));
+    }
+    let model = std::env::var("GEMINI_TTS_MODEL").unwrap_or_else(|_| DEFAULT_TTS_MODEL.into());
+    let voice = std::env::var("GEMINI_TTS_VOICE").unwrap_or_else(|_| "Kore".into());
+    let body = json!({
+        "model": model,
+        "input": text,
+        "response_format": { "type": "audio" },
+        "generation_config": { "speech_config": [{ "voice": voice }] },
+    });
+    let client = http()?;
+    let mut last = 0u16;
+    for attempt in 0..3u64 {
+        let res = client
+            .post("https://generativelanguage.googleapis.com/v1beta/interactions")
+            .header("x-goog-api-key", &key)
+            .json(&body)
+            .send()
+            .await;
+        let Ok(res) = res else {
+            continue;
+        };
+        let status = res.status();
+        let data: Value = res.json().await.unwrap_or(Value::Null);
+        if status.is_success() {
+            let audio = data["steps"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .flat_map(|s| s["content"].as_array().cloned().unwrap_or_default())
+                .find(|c| c["type"] == "audio");
+            let Some(audio) = audio else {
+                break;
+            };
+            let _ = sqlx::query(
+                "INSERT INTO agribot_log (user_id, model, input_tokens, output_tokens, ok) VALUES (?, ?, ?, ?, 1)",
+            )
+            .bind(user.user_id)
+            .bind(&model)
+            .bind(data["usage"]["total_input_tokens"].as_i64().unwrap_or(0))
+            .bind(data["usage"]["total_output_tokens"].as_i64().unwrap_or(0))
+            .execute(&pool)
+            .await;
+            return Ok(Json(json!({
+                "mime_type": audio["mime_type"].as_str().unwrap_or("audio/wav"),
+                "data": audio["data"],
+            })));
+        }
+        last = status.as_u16();
+        tracing::warn!("Gemini TTS error {status}: {}", data["error"]["message"]);
+        if !matches!(last, 429 | 500 | 502 | 503 | 504) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(800 * (attempt + 1))).await;
+    }
+    Err(unavailable(if last == 429 {
+        "Free read-aloud limit reached for now. Please try again later."
+    } else {
+        "Read aloud is busy right now. Please try again in a minute."
+    }))
 }
 
 /// Which AI answers: Gemini (free tier) if `GEMINI_API_KEY` is set, else Claude if

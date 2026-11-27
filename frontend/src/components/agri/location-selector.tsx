@@ -2,7 +2,7 @@ import { MapPin } from "lucide-react";
 import { LOCATIONS } from "@/services";
 import { useFarmLocation } from "@/lib/location-context";
 import { useI18n } from "@/lib/i18n";
-import { INDIAN_STATES } from "@/lib/states";
+import { SERVED_STATES } from "@/lib/service-area";
 import { getSession } from "@/services/session";
 import {
   Select,
@@ -66,7 +66,7 @@ export function LocationSelector({ compact = false }: { compact?: boolean }) {
         </SelectTrigger>
         <SelectContent align="end">
           {home && <SelectItem value="home">{homeLabel}</SelectItem>}
-          {INDIAN_STATES.filter((s) => s !== home?.state).map((s) => (
+          {SERVED_STATES.filter((s) => s !== home?.state).map((s) => (
             <SelectItem key={s} value={s}>
               {t("Prices in")} {t(s)}
             </SelectItem>

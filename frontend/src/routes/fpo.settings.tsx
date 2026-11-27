@@ -4,6 +4,7 @@ import { BadgeCheck, Clock, Save } from "lucide-react";
 import { LANGUAGES, useI18n, type LangCode } from "@/lib/i18n";
 import { fpoApi, type FpoOrg } from "@/services/fpo-api";
 import { PhoneVerifyCard } from "@/components/agri/trust-ui";
+import { PlaceFields } from "@/components/agri/place-fields";
 import { useMyProfile } from "@/hooks/use-market";
 import { useFpoMutation, useFpoQuery } from "@/hooks/use-fpo";
 import {
@@ -72,22 +73,13 @@ function SettingsPage() {
               onChange={(e) => setF({ ...f, registration_no: e.target.value })}
               hint="Companies Act / Co-operative registration, used for verification"
             />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                id="st-district"
-                label="District"
-                value={f.district ?? ""}
-                onChange={(e) => setF({ ...f, district: e.target.value })}
-              />
-              <Input
-                id="st-state"
-                label="State"
-                required
-                value={f.state ?? ""}
-                onChange={(e) => setF({ ...f, state: e.target.value })}
-                hint="Used for live mandi prices"
-              />
-            </div>
+            <PlaceFields
+              idPrefix="st"
+              state={f.state ?? ""}
+              district={f.district ?? ""}
+              onChange={(p) => setF({ ...f, ...p })}
+              selectClassName="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
                 id="st-phone"

@@ -229,7 +229,7 @@ function Decision() {
                 : ""}
             </p>
           </div>
-          <StatusTag status={displayStatus} />
+          <StatusTag status={displayStatus} onDark />
         </div>
 
         {/* Run advisor — result renders right below the button */}
@@ -288,12 +288,29 @@ function Decision() {
               )}
             >
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-primary-foreground px-3 py-1 text-xs font-semibold tracking-wide text-primary">
-                  {t(displayStatus)}
+                <span className="text-[11px] uppercase tracking-wide text-primary-foreground/60">
+                  {t("Recommendation")}
                 </span>
-                <span className="text-xs text-primary-foreground/60">
-                  {t("Strategy")}: {liveAdvice.strategy.replace("_", " ")}
-                </span>
+                <StatusTag status={displayStatus} onDark />
+                {displayStatus === "HOLD" ? (
+                  <Link
+                    to="/forecast"
+                    className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary-foreground px-4 text-sm font-medium text-primary hover:opacity-90"
+                  >
+                    {t("See price forecast")} →
+                  </Link>
+                ) : (
+                  <Link
+                    to="/buyers"
+                    search={lot?.backendId ? { lot: String(lot.backendId) } : {}}
+                    className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary-foreground px-4 text-sm font-medium text-primary hover:opacity-90"
+                  >
+                    {displayStatus === "SPLIT"
+                      ? t("Sell part now — find buyers")
+                      : t("Sell now — find buyers")}{" "}
+                    →
+                  </Link>
+                )}
               </div>
               <p className="mt-3 text-sm leading-relaxed">{liveAdvice.reason}</p>
 

@@ -206,23 +206,38 @@ fn paged<T: Serialize>(items: Vec<T>, total: i64, page: i64, limit: i64) -> Valu
 }
 
 /// Builds the stored farmer location "District, State" from sign-up or profile input.
+/// Only places in the service area (where mandi price data exists) are accepted.
 pub fn farmer_location(district: Option<&str>, state: Option<&str>) -> Result<String, AppError> {
-    let district = district.map(str::trim).unwrap_or("");
-    let state = state.map(str::trim).unwrap_or("");
-    if district.chars().count() < 2 || district.chars().count() > 60 {
-        return Err(bad("Enter your district"));
-    }
-    let state = STATES
-        .iter()
-        .find(|s| s.eq_ignore_ascii_case(state))
-        .ok_or_else(|| bad("Choose your state"))?;
+    let (state, district) = served_place(district, state)?;
     Ok(format!("{district}, {state}"))
 }
 
+/// The official (state, district) spelling, or an error if AgriSense doesn't work there.
+pub fn served_place(
+    district: Option<&str>,
+    state: Option<&str>,
+) -> Result<(&'static str, &'static str), AppError> {
+    let district = district.map(str::trim).unwrap_or("");
+    let state = state.map(str::trim).unwrap_or("");
+    if state.is_empty() {
+        return Err(bad("Choose your state"));
+    }
+    if district.is_empty() {
+        return Err(bad("Choose your district"));
+    }
+    crate::locations::canonical(state, district)
+        .ok_or_else(|| bad(crate::locations::not_served_message()))
+}
+
 /// True when a stored farmer location has no district (old sign-ups saved only a state).
+/// True when a stored location is not a served "District, State" (old sign-ups, or
+/// places outside the service area) — the user is asked to pick one again.
 pub fn location_needs_district(location: Option<&str>) -> bool {
     let l = location.map(str::trim).unwrap_or("");
-    l.is_empty() || STATES.iter().any(|s| s.eq_ignore_ascii_case(l))
+    match l.rsplit_once(',') {
+        Some((district, state)) => crate::locations::canonical(state, district).is_none(),
+        None => true,
+    }
 }
 
 /// States offered at sign-up; also used to read a state out of free-text places.

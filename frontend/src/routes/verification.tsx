@@ -9,7 +9,7 @@ import { BuyerTrustBadge, PhoneVerifyCard } from "@/components/agri/trust-ui";
 import { CameraCapture } from "@/components/agri/camera-capture";
 import { Input, Loading, Select } from "@/components/fpo/fpo-ui";
 import { useI18n } from "@/lib/i18n";
-import { INDIAN_STATES } from "@/lib/states";
+import { PlaceFields } from "@/components/agri/place-fields";
 import { cn } from "@/lib/utils";
 import { inrAmount as rupees } from "@/lib/deal-format";
 import {
@@ -260,15 +260,15 @@ function DetailsForm({ v, onSaved }: { v: Verification; onSaved: () => void }) {
             onChange={set("crops_bought")}
           />
           <Input label="Address" required value={f.address} onChange={set("address")} />
-          <Input label="District" value={f.district} onChange={set("district")} />
-          <Select label="State" value={f.state} onChange={set("state")}>
-            <option value="">{t("Choose state")}</option>
-            {INDIAN_STATES.map((s) => (
-              <option key={s} value={s}>
-                {t(s)}
-              </option>
-            ))}
-          </Select>
+          <div className="sm:col-span-2">
+            <PlaceFields
+              idPrefix="bv"
+              state={f.state}
+              district={f.district}
+              onChange={(p) => setF({ ...f, ...p })}
+              selectClassName="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            />
+          </div>
           <Input
             label="PIN code"
             required

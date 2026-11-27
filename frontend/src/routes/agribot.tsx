@@ -304,15 +304,13 @@ export function AgriBot() {
   const appLang: SupportedBotLang = lang === "hi" ? "hi" : "en";
 
   const [replyLang, setReplyLang] = useState<LangChoice>("auto");
-  const [autoSpeak, setAutoSpeak] = useState(false);
   useEffect(() => {
-    const p = readStore<{ reply?: string; speak?: boolean }>(PREFS_KEY);
+    const p = readStore<{ reply?: string }>(PREFS_KEY);
     if (p?.reply === "hi" || p?.reply === "en") setReplyLang(p.reply);
-    if (p?.speak) setAutoSpeak(true);
   }, []);
   useEffect(() => {
-    writeStore(PREFS_KEY, { reply: replyLang, speak: autoSpeak });
-  }, [replyLang, autoSpeak]);
+    writeStore(PREFS_KEY, { reply: replyLang });
+  }, [replyLang]);
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [lastLang, setLastLang] = useState<SupportedBotLang>(appLang);
@@ -368,6 +366,7 @@ export function AgriBot() {
   };
   const newChat = () => {
     window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
     setChatId(null);
     writeStore(LAST_CHAT_KEY, null);
     setMessages([]);
@@ -404,26 +403,45 @@ export function AgriBot() {
     };
   }, []);
 
+  /** Audio from the server (Gemini) when the browser has no voice for the language. */
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setSpeakingIdx(null);
+  };
+
   const speak = (text: string, msgLang: SupportedBotLang = "hi", idx: number, quiet = false) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (typeof window === "undefined") return;
     if (speakingIdx === idx) {
-      window.speechSynthesis.cancel();
-      setSpeakingIdx(null);
+      stopSpeaking();
       return;
     }
-    window.speechSynthesis.cancel();
+    stopSpeaking();
     const locale = BOT_LANG_INFO[msgLang]?.speechLocale || "hi-IN";
-    const voice = pickVoice(locale);
+    const voice = "speechSynthesis" in window ? pickVoice(locale) : undefined;
     if (!voice) {
-      if (!quiet)
-        toast.error(
-          `${t("No voice for")} ${BOT_LANG_INFO[msgLang]?.name ?? msgLang} ${t("on this device")}`,
-          {
-            description: t(
-              "Brave only uses voices installed in Windows. Open AgriSense in Microsoft Edge (free natural Hindi voices) or Chrome, or add the language's speech pack in Windows Settings → Time & language → Language.",
-            ),
-          },
-        );
+      // No browser voice (e.g. Hindi in Brave): get natural speech from the server.
+      setSpeakingIdx(idx);
+      void request<{ mime_type: string; data: string }>("/api/agribot/tts", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      })
+        .then((r) => {
+          const audio = new Audio(`data:${r.mime_type};base64,${r.data}`);
+          audioRef.current = audio;
+          audio.onended = () => setSpeakingIdx(null);
+          audio.onerror = () => setSpeakingIdx(null);
+          return audio.play();
+        })
+        .catch((e: unknown) => {
+          setSpeakingIdx(null);
+          if (!quiet)
+            toast.error(t("Could not read this reply aloud"), {
+              description: e instanceof Error ? e.message : undefined,
+            });
+        });
       return;
     }
     const parts = chunks(text);
@@ -586,14 +604,12 @@ export function AgriBot() {
     } finally {
       setBusy(false);
     }
-    const botIdx = messages.length + 1;
     setMessages((prev) => [...prev.filter((m) => !m.pending), bot]);
     if (savedId) {
       setChatId(savedId);
       writeStore(LAST_CHAT_KEY, savedId);
       void qc.invalidateQueries({ queryKey: ["agribot-chats"] });
     }
-    if (autoSpeak) setTimeout(() => speak(bot.text, bot.lang, botIdx, true), 50);
   }
 
   /* --------------------------------- layout -------------------------------- */
@@ -660,20 +676,33 @@ export function AgriBot() {
               </div>
               <button
                 onClick={() => {
-                  if (autoSpeak) window.speechSynthesis?.cancel();
-                  setAutoSpeak((v) => !v);
+                  // Play / stop the latest reply. The button turns itself off when reading ends.
+                  if (speakingIdx !== null) {
+                    stopSpeaking();
+                    return;
+                  }
+                  let idx = messages.length - 1;
+                  while (idx >= 0 && (messages[idx]!.role !== "bot" || messages[idx]!.pending))
+                    idx--;
+                  const last = messages[idx];
+                  if (last) speak(last.text, last.lang, idx);
+                  else toast(t("Ask a question first, then press to hear the answer."));
                 }}
-                aria-pressed={autoSpeak}
-                aria-label={t("Read replies aloud")}
-                title={autoSpeak ? t("Reading replies aloud") : t("Read replies aloud")}
+                aria-pressed={speakingIdx !== null}
+                aria-label={speakingIdx !== null ? t("Stop reading") : t("Read the reply aloud")}
+                title={speakingIdx !== null ? t("Stop reading") : t("Read the reply aloud")}
                 className={cn(
                   "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                  autoSpeak
+                  speakingIdx !== null
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-muted-foreground",
                 )}
               >
-                {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                {speakingIdx !== null ? (
+                  <Volume2 className="h-4 w-4 animate-pulse" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
               </button>
             </div>
           </header>
@@ -690,9 +719,7 @@ export function AgriBot() {
                     <BotMessage
                       key={i}
                       m={m}
-                      speaking={speakingIdx === i}
                       vote={votes[i]}
-                      onSpeak={() => speak(m.text, m.lang, i)}
                       onVote={(v) => setVotes((s) => ({ ...s, [i]: v }))}
                       onNavigate={(to) => void navigate({ to: to as "/" })}
                     />
@@ -989,16 +1016,12 @@ function UserBubble({ m }: { m: Msg }) {
 
 function BotMessage({
   m,
-  speaking,
   vote,
-  onSpeak,
   onVote,
   onNavigate,
 }: {
   m: Msg;
-  speaking: boolean;
   vote: "up" | "down" | undefined;
-  onSpeak: () => void;
   onVote: (v: "up" | "down") => void;
   onNavigate: (to: string) => void;
 }) {
@@ -1055,15 +1078,6 @@ function BotMessage({
         </div>
         {!m.pending && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-            <button
-              onClick={onSpeak}
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-1",
-                speaking ? "bg-emerald-100 text-emerald-900" : "hover:bg-secondary",
-              )}
-            >
-              <Volume2 className="h-3.5 w-3.5" /> {speaking ? t("Playing") : t("Listen")}
-            </button>
             <button
               onClick={() =>
                 void navigator.clipboard

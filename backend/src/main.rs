@@ -5,6 +5,7 @@ mod db;
 mod errors;
 mod fpo;
 mod handlers;
+mod locations;
 mod market;
 mod migrate_fix;
 mod models;
@@ -157,6 +158,7 @@ async fn main() {
         .merge(quality::routes())
         .merge(verification::routes())
         .merge(agribot::routes())
+        .merge(locations::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(pool);
